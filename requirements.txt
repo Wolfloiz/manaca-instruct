@@ -1,0 +1,16 @@
+# Core ML stack — see specs/001-manaca-instruct-tuning/research.md and plan.md's Technical Context
+torch>=2.3,<3.0            # install the CUDA build matching this machine's driver; see README for the exact index-url
+transformers>=4.42,<5.0
+peft>=0.11,<1.0
+trl>=0.9,<1.0
+bitsandbytes>=0.43,<1.0
+datasets>=2.19,<3.0
+
+# Publishing (FR-009/FR-010)
+huggingface_hub>=0.23,<1.0
+
+# Grading (research.md §3) — only needed if difflib's stdlib performance is insufficient
+rapidfuzz>=3.9,<4.0
+
+# Dev/test
+pytest>=8.0,<9.0
