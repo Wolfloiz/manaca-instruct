@@ -54,15 +54,15 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 **⚠️ CRITICAL**: Blocks Phase 3 onward.
 
-- [ ] T008 (Agent 3, in `../manaca-instruct-agent3-infra`) Create `requirements.txt` (or `pyproject.toml`) pinning `torch` (CUDA build), `transformers`, `peft`, `trl`, `bitsandbytes`, `datasets`, `huggingface_hub`, `pytest`, per plan.md's Primary Dependencies
-- [ ] T009 [P] (Agent 3) Scaffold the directory tree from plan.md's Project Structure: `configs/`, `data/raw/`, `data/processed/`, `data/eval/`, `adapters/`, `models/merged/`, `models/gguf/`, `eval/results/`, `benchmarks/`, `tests/unit/`, `tests/contract/` (each with a `.gitkeep` so empty dirs are tracked)
-- [ ] T010 [P] (Agent 3) Create `configs/train.yaml` with the QLoRA starting configuration from research.md §2: 4-bit NF4 quantization, LoRA rank 8–16, LoRA alpha 16–32, dropout 0.05, batch size 1–2, gradient accumulation 8–32, learning rate 1e-4–2e-4, 1–3 epochs
-- [ ] T011 [P] (Agent 3) Create `configs/inference.yaml` with generation defaults (temperature, top_p, max_new_tokens) for evaluation/benchmarking runs
-- [ ] T012 [US-shared] (Agent 2, in `../manaca-instruct-agent2-eval`) Implement the schema-conformance checks in `tests/contract/test_dataset_schema.py` and `tests/contract/test_evaluation_results_schema.py`, validating files against `contracts/dataset-schema.md` and `contracts/evaluation-results-schema.md` respectively — these are what let 3 independently-reviewed PRs interoperate safely
-- [ ] T013 (Agent 3) Open PR #1 (`agent3-infra` → `001-manaca-instruct-tuning`) with T008–T011
-- [ ] T014 (Agent 2) Open PR #2 (`agent2-eval` → `001-manaca-instruct-tuning`) with T012
-- [ ] T015 (You) Set up CUDA/WSL2/PyTorch on the RTX 5050 machine per `manaca-local-projeto.md` §10; verify `torch.cuda.is_available()` returns `True`
-- [ ] T016 (You) Code-review and merge PR #1 and PR #2 into `001-manaca-instruct-tuning`
+- [X] T008 (Agent 3, in `../manaca-instruct-agent3-infra`) Create `requirements.txt` (or `pyproject.toml`) pinning `torch` (CUDA build), `transformers`, `peft`, `trl`, `bitsandbytes`, `datasets`, `huggingface_hub`, `pytest`, per plan.md's Primary Dependencies
+- [X] T009 [P] (Agent 3) Scaffold the directory tree from plan.md's Project Structure: `configs/`, `data/raw/`, `data/processed/`, `data/eval/`, `adapters/`, `models/merged/`, `models/gguf/`, `eval/results/`, `benchmarks/`, `tests/unit/`, `tests/contract/` (each with a `.gitkeep` so empty dirs are tracked)
+- [X] T010 [P] (Agent 3) Create `configs/train.yaml` with the QLoRA starting configuration from research.md §2: 4-bit NF4 quantization, LoRA rank 8–16, LoRA alpha 16–32, dropout 0.05, batch size 1–2, gradient accumulation 8–32, learning rate 1e-4–2e-4, 1–3 epochs
+- [X] T011 [P] (Agent 3) Create `configs/inference.yaml` with generation defaults (temperature, top_p, max_new_tokens) for evaluation/benchmarking runs
+- [X] T012 [US-shared] (Agent 2, in `../manaca-instruct-agent2-eval`) Implement the schema-conformance checks in `tests/contract/test_dataset_schema.py` and `tests/contract/test_evaluation_results_schema.py`, validating files against `contracts/dataset-schema.md` and `contracts/evaluation-results-schema.md` respectively — these are what let 3 independently-reviewed PRs interoperate safely (12/12 tests passing)
+- [X] T013 (Agent 3) Open PR #1 (`agent3-infra` → `001-manaca-instruct-tuning`) with T008–T011 — [PR #1](https://github.com/Wolfloiz/manaca-instruct/pull/1), merged
+- [X] T014 (Agent 2) Open PR #2 (`agent2-eval` → `001-manaca-instruct-tuning`) with T012 — [PR #2](https://github.com/Wolfloiz/manaca-instruct/pull/2), merged
+- [ ] T015 (You) Set up CUDA/WSL2/PyTorch on the RTX 5050 machine per `manaca-local-projeto.md` §10; verify `torch.cuda.is_available()` returns `True` — **not done**: out of scope for this implementation pass (installing the full CUDA torch build is a large download reserved for when you're ready to actually train); `requirements.txt` is ready whenever you are
+- [X] T016 (You) Code-review and merge PR #1 and PR #2 into `001-manaca-instruct-tuning` — `/code-review` caught a real documentation contradiction in this file (introduced while updating Phase 1's checkboxes), fixed before merge
 
 **Checkpoint**: Foundation merged — Agents 1 and 2 can now start their story-phase work in parallel.
 
