@@ -13,20 +13,20 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 ## Repo state today
 
-This directory is **not yet a git repository** (`.specify/extensions.yml` has no git hooks installed and no `.git/` exists). Phase 1 below creates it, since "everything controlled by GitHub" requires a repo to exist first. `gh` is already authenticated (account confirmed reachable) — no login step needed.
+**Updated 2026-09-14 during `/speckit-implement`**: Phase 1 is done. Repo live at `https://github.com/Wolfloiz/manaca-instruct` (private), `main` pushed, integration branch `001-manaca-instruct-tuning` pushed, all 3 agent worktrees created. Branch protection (T003) could **not** be enabled — GitHub blocks branch-protection rules on private repos without GitHub Pro (403: "Upgrade to GitHub Pro or make this repository public"). The PR-only workflow below is now enforced by convention, not by a server-side gate; if that matters, either upgrade the plan or make the repo public later (`gh repo edit --visibility public`) and re-run T003's command. Also note: agent branch names changed from the original `001-manaca-instruct-tuning/agentN-...` to `agents/agentN-...` — git rejects a branch name that is a path-prefix of another existing branch name (`001-manaca-instruct-tuning` already exists as the integration branch), so the nested form was never actually creatable.
 
 ## Team & Branch Assignments
 
 | Owner | Role (per the author's own roadmap-execucao.md split) | Worktree | Branch |
 |---|---|---|---|
 | **You** | Environment/CUDA setup, all GPU training runs, physical Dell G3 benchmarking, dataset-quality review, hyperparameter decisions, PR review/merge, the final publish action | main checkout (repo root) | `001-manaca-instruct-tuning` (integration branch) |
-| **Agent 1** | Dataset: grammar-correction + rewriting sourcing/filtering; `prepare_dataset.py` orchestration | `../manaca-instruct-agent1-dataset` | `001-manaca-instruct-tuning/agent1-dataset` |
-| **Agent 2** | Dataset: simplification/summarization/classification sourcing/filtering; the fixed evaluation prompt set; the grading/evaluation harness; the model-card comparison tables | `../manaca-instruct-agent2-eval` | `001-manaca-instruct-tuning/agent2-eval` |
-| **Agent 3** | Infrastructure: repo scaffolding, `train_qlora.py`, `merge_adapter.py`, `quantize.py`, `benchmark.py`, `publish.py` | `../manaca-instruct-agent3-infra` | `001-manaca-instruct-tuning/agent3-infra` |
+| **Agent 1** | Dataset: grammar-correction + rewriting sourcing/filtering; `prepare_dataset.py` orchestration | `../manaca-instruct-agent1-dataset` | `agents/agent1-dataset` |
+| **Agent 2** | Dataset: simplification/summarization/classification sourcing/filtering; the fixed evaluation prompt set; the grading/evaluation harness; the model-card comparison tables | `../manaca-instruct-agent2-eval` | `agents/agent2-eval` |
+| **Agent 3** | Infrastructure: repo scaffolding, `train_qlora.py`, `merge_adapter.py`, `quantize.py`, `benchmark.py`, `publish.py` | `../manaca-instruct-agent3-infra` | `agents/agent3-infra` |
 
 ## GitHub workflow (applies to every task below)
 
-1. **Trunk**: `main`, protected — direct pushes blocked, merge requires an open PR with at least one approving review (set up in T003).
+1. **Trunk**: `main` — direct pushes to it are avoided by convention (T003 found that server-side branch protection isn't available on this GitHub plan for a private repo; see "Repo state today" above). Still merge only via a reviewed PR, same as if the gate were enforced.
 2. **Integration branch**: `001-manaca-instruct-tuning`, created off `main` (T004). All three agents' branches open PRs **into this branch**, not `main`. You merge `001-manaca-instruct-tuning` → `main` once (T059), after every user story phase is done.
 3. **Per-agent branch**: each agent works only inside their own worktree, on their own branch, and never pushes directly to `001-manaca-instruct-tuning` or `main` — every change is a PR.
 4. **Code review**: before merging any agent's PR, run `/code-review` (or `/code-review high` for the training/quantization scripts, since correctness there is harder to eyeball) on the diff, then `gh pr review --approve` and `gh pr merge`. You are the sole human reviewer — there is no second person, so the automated review pass is not optional, it's the substitute for a second pair of eyes.
@@ -36,15 +36,15 @@ This directory is **not yet a git repository** (`.specify/extensions.yml` has no
 
 **Purpose**: Turn this directory into a GitHub-controlled repo with the worktrees the 3 agents will work in.
 
-- [ ] T001 (You) Run `git init`, `git add -A`, and commit the existing `specs/`, `.specify/`, and project docs (`manaca-local-projeto.md`, `roadmap-execucao.md`) as the initial commit on `main`
-- [ ] T002 (You) Run `gh repo create manaca-instruct --private --source=. --remote=origin --push` to create the GitHub repository and push `main` (rename/make public later with `gh repo rename` / `gh repo edit --visibility public` if desired — private is the safer default while the repo holds work-in-progress)
-- [ ] T003 (You) Configure branch protection on `main` requiring an open PR and at least 1 approving review before merge, via `gh api repos/{owner}/manaca-instruct/branches/main/protection` or the GitHub web UI
-- [ ] T004 (You) Create and push the integration branch: `git checkout -b 001-manaca-instruct-tuning && git push -u origin 001-manaca-instruct-tuning`
-- [ ] T005 [P] (You) Create Agent 1's worktree: `git worktree add ../manaca-instruct-agent1-dataset -b 001-manaca-instruct-tuning/agent1-dataset 001-manaca-instruct-tuning`
-- [ ] T006 [P] (You) Create Agent 2's worktree: `git worktree add ../manaca-instruct-agent2-eval -b 001-manaca-instruct-tuning/agent2-eval 001-manaca-instruct-tuning`
-- [ ] T007 [P] (You) Create Agent 3's worktree: `git worktree add ../manaca-instruct-agent3-infra -b 001-manaca-instruct-tuning/agent3-infra 001-manaca-instruct-tuning`
+- [X] T001 (You) Run `git init`, `git add -A`, and commit the existing `specs/`, `.specify/`, and project docs (`manaca-local-projeto.md`, `roadmap-execucao.md`) as the initial commit on `main`
+- [X] T002 (You) Run `gh repo create manaca-instruct --private --source=. --remote=origin --push` to create the GitHub repository and push `main` (rename/make public later with `gh repo rename` / `gh repo edit --visibility public` if desired — private is the safer default while the repo holds work-in-progress)
+- [X] T003 (You) ~~Configure branch protection on `main`~~ — **blocked**: not available for private repos on the current GitHub plan (see "Repo state today" above). Falling back to convention-enforced PRs.
+- [X] T004 (You) Create and push the integration branch: `git checkout -b 001-manaca-instruct-tuning && git push -u origin 001-manaca-instruct-tuning`
+- [X] T005 [P] (You) Create Agent 1's worktree: `git worktree add ../manaca-instruct-agent1-dataset -b agents/agent1-dataset 001-manaca-instruct-tuning`
+- [X] T006 [P] (You) Create Agent 2's worktree: `git worktree add ../manaca-instruct-agent2-eval -b agents/agent2-eval 001-manaca-instruct-tuning`
+- [X] T007 [P] (You) Create Agent 3's worktree: `git worktree add ../manaca-instruct-agent3-infra -b agents/agent3-infra 001-manaca-instruct-tuning`
 
-**Checkpoint**: Repo exists on GitHub, `main` is protected, the integration branch exists, and all 3 agent worktrees are ready to be handed to agents.
+**Checkpoint**: Repo exists on GitHub (main pushed, protection unavailable on this plan — see above), the integration branch exists, and all 3 agent worktrees are ready to be handed to agents.
 
 ---
 
