@@ -2,8 +2,8 @@
 
 Usage:
 
-    python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
-    python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
+    python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
+    python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
 
 Implements FR-007/FR-008 and data-model.md's BenchmarkRecord: tokens_per_second,
 load_time_s, vram_mb, ram_mb, stalled_or_crashed, written as one JSONL row per run.

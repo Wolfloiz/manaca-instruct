@@ -2,11 +2,11 @@
 
 Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
 
-    python src/evaluate.py --model manaca-1b-base \
+    python -m src.evaluate --model manaca-1b-base \
         --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
         --run-id baseline --out eval/results/baseline.jsonl
 
-    python src/evaluate.py --model manaca-instruct-pt --adapter adapters/qlora-v1 \
+    python -m src.evaluate --model manaca-instruct-pt --adapter adapters/qlora-v1 \
         --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
         --run-id qlora-v1 --out eval/results/qlora-v1.jsonl
 

@@ -2,7 +2,7 @@
 
 Usage:
 
-    python src/merge_adapter.py --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
+    python -m src.merge_adapter --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
 
 Implements the merge step of FR-006. NOTE: `_load_base_and_adapter()` and
 `_merge_and_save()` are documented seams — see src/train_qlora.py's module

@@ -2,7 +2,7 @@
 
 Usage:
 
-    python src/quantize.py --model models/merged/manaca-instruct-pt --levels Q4_K_M Q5_K_M --out-dir models/gguf/
+    python -m src.quantize --model models/merged/manaca-instruct-pt --levels Q4_K_M Q5_K_M --out-dir models/gguf/
 
 Implements FR-006 via the standard llama.cpp workflow from research.md §4:
 merged model -> F16 GGUF (`convert_hf_to_gguf.py`) -> quantize (`llama-quantize`).

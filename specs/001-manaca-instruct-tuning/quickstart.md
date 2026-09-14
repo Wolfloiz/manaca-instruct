@@ -14,7 +14,7 @@ A runnable validation path proving each user story in `spec.md` actually works, 
 ## Validate User Story 1 — Baseline
 
 ```bash
-python src/evaluate.py \
+python -m src.evaluate \
   --model manaca-1b-base \
   --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
   --run-id baseline \
@@ -26,12 +26,12 @@ python src/evaluate.py \
 ## Validate User Story 2 — Fine-tune & evaluate
 
 ```bash
-python src/prepare_dataset.py --sources alpaca-pt-br canarim --out-dir data/
-python src/train_qlora.py --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
-python src/evaluate.py --model manaca-instruct-pt --adapter adapters/qlora-v1 \
+python -m src.prepare_dataset --sources alpaca-pt-br canarim --out-dir data/
+python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
+python -m src.evaluate --model manaca-instruct-pt --adapter adapters/qlora-v1 \
   --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
   --run-id qlora-v1 --out eval/results/qlora-v1.jsonl
-python src/evaluate.py \
+python -m src.evaluate \
   --model manaca-1b-instruct \
   --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
   --run-id official-instruct --out eval/results/official-instruct.jsonl
@@ -46,14 +46,14 @@ python src/evaluate.py \
 ## Validate User Story 3 — Cross-hardware deployment
 
 ```bash
-python src/merge_adapter.py --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
-python src/quantize.py --model models/merged/manaca-instruct-pt --levels Q4_K_M Q5_K_M --out-dir models/gguf/
+python -m src.merge_adapter --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
+python -m src.quantize --model models/merged/manaca-instruct-pt --levels Q4_K_M Q5_K_M --out-dir models/gguf/
 
 # On the RTX 5050 (dev machine):
-python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
+python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
 
 # On the Dell G3 (deployment machine):
-python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
+python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
 ```
 
 **Expected outcome**: `models/gguf/` contains at least 2 quantization levels (FR-006). Both `benchmarks/rtx-5050.jsonl` and `benchmarks/dell-g3.jsonl` contain at least one `BenchmarkRecord` with `stalled_or_crashed: false` (SC-004) — generation completes cleanly on both machines regardless of measured speed. `tokens_per_second` is recorded honestly on both, even if the Dell G3's 4GB-VRAM number comes in below the ~70 tok/s target aimed at typical modern-GPU downloaders (SC-005; per the Edge Cases section, this is reported, not hidden).
@@ -61,7 +61,7 @@ python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --mac
 ## Validate User Story 4 — Publish
 
 ```bash
-python src/publish.py --model models/merged/manaca-instruct-pt --gguf-dir models/gguf/ \
+python -m src.publish --model models/merged/manaca-instruct-pt --gguf-dir models/gguf/ \
   --eval-results eval/results/qlora-v1.jsonl eval/results/baseline.jsonl eval/results/official-instruct.jsonl \
   --repo-id <hf-username>/manaca-instruct-pt
 ```

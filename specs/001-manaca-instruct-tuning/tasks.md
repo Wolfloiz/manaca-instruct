@@ -91,7 +91,7 @@ The author scoped this pass to **"setup + scaffolding only"**: no dataset downlo
 - [ ] T021 [US1] (Agent 2) Implement `src/grading/review_cli.py`: walks an `eval/results/*.jsonl` file, presents each `score: null` row for a 1/0.5/0 (correct/partial/incorrect) judgment, writes the score back in place — depends on T020
 - [ ] T022 [US1] (Agent 2) Open PR #3 (`agent2-eval` → `001-manaca-instruct-tuning`) with T017–T021
 - [ ] T023 [US1] (You) Code-review and merge PR #3
-- [ ] T024 [US1] (You) Run `python src/evaluate.py --model manaca-1b-base --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id baseline --out eval/results/baseline.jsonl` on the RTX 5050 — depends on T023
+- [ ] T024 [US1] (You) Run `python -m src.evaluate --model manaca-1b-base --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id baseline --out eval/results/baseline.jsonl` on the RTX 5050 — depends on T023
 - [ ] T025 [US1] (You) Run `src/grading/review_cli.py` against `eval/results/baseline.jsonl` to grade every `manual_review` row; confirm at least one `grupo_a` prompt shows the base model not following the instruction (Acceptance Scenario 2)
 - [ ] T026 [US1] (You) Commit `eval/results/baseline.jsonl` to `001-manaca-instruct-tuning` (direct commit is fine here — it's your own run output, not agent-authored code needing review)
 
@@ -113,14 +113,14 @@ The author scoped this pass to **"setup + scaffolding only"**: no dataset downlo
 - [X] T030 [US2] (Agent 1) Open PR (`agent1-dataset` → `001-manaca-instruct-tuning`) with T027, T029 — [PR #5](https://github.com/Wolfloiz/manaca-instruct/pull/5), merged
 - [X] T031 [US2] (Agent 2) Open PR (`agent2-eval` → `001-manaca-instruct-tuning`) with T028 — [PR #4](https://github.com/Wolfloiz/manaca-instruct/pull/4), merged first so T029 could import it (actual PR numbers ended up #4/#5, not #4/#5 as originally sketched — sequencing adapted to the real cross-agent dependency)
 - [X] T032 [US2] (You) Code-review and merge PR #4 and PR #5
-- [ ] T033 [US2] (You) Run `python src/prepare_dataset.py`; spot-check the resulting `train.jsonl`/`validation.jsonl` for Portuguese correctness and category balance; approve, or send specific examples back to Agent 1/2 for a follow-up fix commit — **not done**: requires a real dataset download, out of scope for this implementation pass
+- [ ] T033 [US2] (You) Run `python -m src.prepare_dataset`; spot-check the resulting `train.jsonl`/`validation.jsonl` for Portuguese correctness and category balance; approve, or send specific examples back to Agent 1/2 for a follow-up fix commit — **not done**: requires a real dataset download, out of scope for this implementation pass
 - [X] T034 [P] [US2] (Agent 3, in `../manaca-instruct-agent3-infra`) Implement `src/train_qlora.py`: QLoRA fine-tuning entrypoint — `menezesbruno/manaca-1b-base` + `configs/train.yaml` + `data/train.jsonl` → adapter checkpoint under `adapters/<run-id>/` — validates config against research.md §2's ranges and the dataset schema; `_build_model`/`_run_training` are documented seams (no GPU execution in this pass)
 - [X] T035 [P] [US2] (Agent 3) Implement `src/merge_adapter.py`: merges a trained LoRA adapter into a standalone model under `models/merged/<run-id>/` — same seam pattern
 - [X] T036 [US2] (Agent 3) Open PR (`agent3-infra` → `001-manaca-instruct-tuning`) with T034–T035 — [PR #6](https://github.com/Wolfloiz/manaca-instruct/pull/6), merged
 - [X] T037 [US2] (You) Code-review and merge PR #6 — 50/50 tests passing at merge time
-- [ ] T038 [US2] (You) Run `python src/train_qlora.py --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1` on the RTX 5050 — depends on T033, T037
-- [ ] T039 [US2] (You) Run `python src/evaluate.py --model manaca-instruct-pt --adapter adapters/qlora-v1 --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id qlora-v1 --out eval/results/qlora-v1.jsonl`
-- [ ] T040 [US2] (You) Run `python src/evaluate.py --model manaca-1b-instruct --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id official-instruct --out eval/results/official-instruct.jsonl` (the official comparison model, FR-004)
+- [ ] T038 [US2] (You) Run `python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1` on the RTX 5050 — depends on T033, T037
+- [ ] T039 [US2] (You) Run `python -m src.evaluate --model manaca-instruct-pt --adapter adapters/qlora-v1 --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id qlora-v1 --out eval/results/qlora-v1.jsonl`
+- [ ] T040 [US2] (You) Run `python -m src.evaluate --model manaca-1b-instruct --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl --run-id official-instruct --out eval/results/official-instruct.jsonl` (the official comparison model, FR-004)
 - [ ] T041 [US2] (You) Run `src/grading/review_cli.py` against both `eval/results/qlora-v1.jsonl` and `eval/results/official-instruct.jsonl`
 - [ ] T042 [US2] (You) Aggregate `eval/results/qlora-v1.jsonl` by `(model, task_category)`; confirm each of the 5 categories reaches ≥70% pass rate vs. baseline (SC-002) and the forgetting-check relative drop is ≤10% (SC-003) — or write up the shortfall as a known limitation per category
 - [ ] T043 [US2] (You) **If T042 misses either threshold**: adjust `configs/train.yaml` within research.md §2's ranges and repeat T038–T042 once as `run-id qlora-v2` (FR-005's single budgeted iteration cap — do not repeat again after this)

@@ -3,7 +3,7 @@ dedupe against the frozen evaluation prompts, and write train/validation splits.
 
 Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
 
-    python src/prepare_dataset.py --sources alpaca-pt-br canarim --out-dir data/
+    python -m src.prepare_dataset --sources alpaca-pt-br canarim --out-dir data/
 
 Implements FR-002 and data-model.md's InstructionExample validation rules:
 - task_category in the fixed 5-value set (checked per-row by the filter modules

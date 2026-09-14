@@ -3,7 +3,7 @@
 
 Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
 
-    python src/train_qlora.py --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
+    python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
 
 Implements FR-002 (QLoRA fine-tuning) using the starting configuration from
 research.md §2 / configs/train.yaml. FR-005 budgets exactly one iteration
