@@ -5,6 +5,7 @@ peft>=0.11,<1.0
 trl>=0.9,<1.0
 bitsandbytes>=0.43,<1.0
 datasets>=2.19,<3.0
+pyyaml>=6.0,<7.0           # configs/train.yaml, configs/inference.yaml parsing
 
 # Publishing (FR-009/FR-010)
 huggingface_hub>=0.23,<1.0
