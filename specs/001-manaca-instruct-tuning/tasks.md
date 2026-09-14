@@ -15,6 +15,16 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 **Updated 2026-09-14 during `/speckit-implement`**: Phase 1 is done. Repo live at `https://github.com/Wolfloiz/manaca-instruct` (private), `main` pushed, integration branch `001-manaca-instruct-tuning` pushed, all 3 agent worktrees created. Branch protection (T003) could **not** be enabled — GitHub blocks branch-protection rules on private repos without GitHub Pro (403: "Upgrade to GitHub Pro or make this repository public"). The PR-only workflow below is now enforced by convention, not by a server-side gate; if that matters, either upgrade the plan or make the repo public later (`gh repo edit --visibility public`) and re-run T003's command. Also note: agent branch names changed from the original `001-manaca-instruct-tuning/agentN-...` to `agents/agentN-...` — git rejects a branch name that is a path-prefix of another existing branch name (`001-manaca-instruct-tuning` already exists as the integration branch), so the nested form was never actually creatable.
 
+## Implementation status (as of the 2026-09-14 `/speckit-implement` pass)
+
+The author scoped this pass to **"setup + scaffolding only"**: no dataset downloads, no GPU training. Within that scope, everything is done:
+
+- **Phase 1 (Setup)** and **Phase 2 (Foundational)**: complete.
+- **All agent-owned code across every phase** (T017–T021, T027–T029, T034–T035, T045–T046, T053–T054, T060): complete and merged — **10 PRs opened and merged** ([#1](https://github.com/Wolfloiz/manaca-instruct/pull/1)–[#10](https://github.com/Wolfloiz/manaca-instruct/pull/10)), **66/66 tests passing** across the whole repo.
+- Every script that needs real model weights, GPU compute, a llama.cpp build, or a Hugging Face token (`evaluate.py`'s `_load_model`/`_generate`, `train_qlora.py`'s `_build_model`/`_run_training`, `merge_adapter.py`'s `_load_base_and_adapter`/`_merge_and_save`, `quantize.py`'s `_run_conversion`/`_run_quantize`, `benchmark.py`'s `_load_gguf_model`/`_run_generation_benchmark`, `publish.py`'s `_push_to_hub`) is a **documented, tested seam** — real argument validation and business logic, `NotImplementedError` at the one point that would otherwise require a network call, GPU, or credential this pass didn't have.
+- **Still entirely pending, all "(You)" tasks**: T015 (CUDA/torch install), T033 (run `prepare_dataset.py`), T038–T044 (real training + evaluation + grading, including the FR-005 iteration decision), T049–T052 (real quantization + both benchmarks), T058–T059 (the actual publish + verification), T061–T063 (quickstart sign-off, merge to `main`, tag release).
+- The 3 agent worktrees (`../manaca-instruct-agent{1,2,3}-*`) are still present and synced to the latest integration branch — ready to resume in, or safe to remove once the feature is fully done (T063).
+
 ## Team & Branch Assignments
 
 | Owner | Role (per the author's own roadmap-execucao.md split) | Worktree | Branch |
@@ -27,7 +37,7 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 ## GitHub workflow (applies to every task below)
 
 1. **Trunk**: `main` — direct pushes to it are avoided by convention (T003 found that server-side branch protection isn't available on this GitHub plan for a private repo; see "Repo state today" above). Still merge only via a reviewed PR, same as if the gate were enforced.
-2. **Integration branch**: `001-manaca-instruct-tuning`, created off `main` (T004). All three agents' branches open PRs **into this branch**, not `main`. You merge `001-manaca-instruct-tuning` → `main` once (T059), after every user story phase is done.
+2. **Integration branch**: `001-manaca-instruct-tuning`, created off `main` (T004). All three agents' branches open PRs **into this branch**, not `main`. You merge `001-manaca-instruct-tuning` → `main` once (T062), after every user story phase is done.
 3. **Per-agent branch**: each agent works only inside their own worktree, on their own branch, and never pushes directly to `001-manaca-instruct-tuning` or `main` — every change is a PR.
 4. **Code review**: before merging any agent's PR, run `/code-review` (or `/code-review high` for the training/quantization scripts, since correctness there is harder to eyeball) on the diff, then `gh pr review --approve` and `gh pr merge`. You are the sole human reviewer — there is no second person, so the automated review pass is not optional, it's the substitute for a second pair of eyes.
 5. **Commit granularity**: one PR per numbered task group below (grouped explicitly where a PR task exists); don't batch unrelated tasks into one PR.
@@ -126,14 +136,14 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 **Independent Test**: `benchmarks/rtx-5050.jsonl` and `benchmarks/dell-g3.jsonl` each contain a `BenchmarkRecord` with `stalled_or_crashed: false`.
 
-- [ ] T045 [P] [US3] (Agent 3) Implement `src/quantize.py`: wraps llama.cpp's `convert_hf_to_gguf.py` (merged model → F16 GGUF) and `llama-quantize` (F16 → `Q4_K_M` and `Q5_K_M`) per research.md §4 — note the flagged risk there about aggressive quantization on QLoRA-derived models and validate output isn't degraded before proceeding
-- [ ] T046 [P] [US3] (Agent 3) Implement `src/benchmark.py`: loads a given GGUF file on the current machine, runs a repeated prompt set, records `tokens_per_second`, `load_time_s`, `vram_mb`, `ram_mb`, `stalled_or_crashed` as a `BenchmarkRecord` (data-model.md) to a `--out` JSONL file, tagged with `--machine {rtx-5050|dell-g3}`
-- [ ] T047 [US3] (Agent 3) Open PR #7 (`agent3-infra` → `001-manaca-instruct-tuning`) with T045–T046
-- [ ] T048 [US3] (You) Code-review and merge PR #7
-- [ ] T049 [US3] (You) Run `src/merge_adapter.py` + `src/quantize.py` on the final `qlora-v1`/`qlora-v2` adapter to produce `models/gguf/manaca-instruct-pt-Q4_K_M.gguf` and `-Q5_K_M.gguf` — depends on T044, T048
-- [ ] T050 [US3] (You) Run `src/benchmark.py --machine rtx-5050` on the RTX 5050, writing `benchmarks/rtx-5050.jsonl`; confirm `stalled_or_crashed: false`
-- [ ] T051 [US3] (You) Physically run `src/benchmark.py --machine dell-g3` on the Dell G3 (GTX 1050, 4GB VRAM), writing `benchmarks/dell-g3.jsonl`; confirm `stalled_or_crashed: false` and record the real tokens/sec honestly even if it comes in below the ~70 tok/s typical-downloader target (SC-005 applies to a typical modern GPU, not necessarily this machine — see spec.md's Edge Cases)
-- [ ] T052 [US3] (You) Commit `models/gguf/*.gguf` (or Git LFS pointers, if the files are large — see note below) and `benchmarks/*.jsonl` to `001-manaca-instruct-tuning`
+- [X] T045 [P] [US3] (Agent 3) Implement `src/quantize.py`: wraps llama.cpp's `convert_hf_to_gguf.py` (merged model → F16 GGUF) and `llama-quantize` (F16 → `Q4_K_M` and `Q5_K_M`) per research.md §4 — note the flagged risk there about aggressive quantization on QLoRA-derived models and validate output isn't degraded before proceeding — enforces FR-006's "≥2 levels" rule; `_run_conversion`/`_run_quantize` are documented seams (no real llama.cpp binaries invoked)
+- [X] T046 [P] [US3] (Agent 3) Implement `src/benchmark.py`: loads a given GGUF file on the current machine, runs a repeated prompt set, records `tokens_per_second`, `load_time_s`, `vram_mb`, `ram_mb`, `stalled_or_crashed` as a `BenchmarkRecord` (data-model.md) to a `--out` JSONL file, tagged with `--machine {rtx-5050|dell-g3}` — same seam pattern
+- [X] T047 [US3] (Agent 3) Open PR (`agent3-infra` → `001-manaca-instruct-tuning`) with T045–T046 — [PR #7](https://github.com/Wolfloiz/manaca-instruct/pull/7), merged
+- [X] T048 [US3] (You) Code-review and merge PR #7 — 58/58 tests passing at merge time
+- [ ] T049 [US3] (You) Run `src/merge_adapter.py` + `src/quantize.py` on the final `qlora-v1`/`qlora-v2` adapter to produce `models/gguf/manaca-instruct-pt-Q4_K_M.gguf` and `-Q5_K_M.gguf` — **not done**: requires a real trained adapter (T038) and a local llama.cpp build, out of scope for this pass
+- [ ] T050 [US3] (You) Run `src/benchmark.py --machine rtx-5050` on the RTX 5050, writing `benchmarks/rtx-5050.jsonl`; confirm `stalled_or_crashed: false` — **not done**, same reason
+- [ ] T051 [US3] (You) Physically run `src/benchmark.py --machine dell-g3` on the Dell G3 (GTX 1050, 4GB VRAM), writing `benchmarks/dell-g3.jsonl`; confirm `stalled_or_crashed: false` and record the real tokens/sec honestly even if it comes in below the ~70 tok/s typical-downloader target (SC-005 applies to a typical modern GPU, not necessarily this machine — see spec.md's Edge Cases) — **not done**: needs physical access to the second machine
+- [ ] T052 [US3] (You) Commit `models/gguf/*.gguf` (or Git LFS pointers, if the files are large — see note below) and `benchmarks/*.jsonl` to `001-manaca-instruct-tuning` — **not done**: no artifacts exist yet
 
 **Note on large files**: GGUF files can be 1GB+; if that's too large for a normal git push, run `git lfs install && git lfs track "*.gguf"` before T052, or skip committing the binary and instead record its SHA256 + where it's stored (it will be pushed to Hugging Face in Phase 6 regardless).
 
@@ -147,13 +157,13 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 **Independent Test**: Someone who has never seen this project can download the model and generate a response using only the model card.
 
-- [ ] T053 [P] [US4] (Agent 3) Implement `src/publish.py`: pushes the merged model + GGUF files + model card via `huggingface_hub` (`create_repo` + `upload_folder`), **refusing to run** if the model card is missing its `license` front-matter, either usage snippet, or a populated evaluation section — per `contracts/model-usage-contract.md`'s pre-publish gate
-- [ ] T054 [P] [US4] (Agent 2) Draft the model card `README.md` template (YAML front matter: `license: cc-by-nc-4.0`, `language: [pt]`, `base_model: menezesbruno/manaca-1b-base`) with all 6 required sections from `contracts/model-usage-contract.md`, including the SC-008 three-way comparison table generated from `eval/results/baseline.jsonl` + `eval/results/qlora-v1.jsonl` (or `v2`) + `eval/results/official-instruct.jsonl`
-- [ ] T055 [US4] (Agent 3) Open PR #8 (`agent3-infra` → `001-manaca-instruct-tuning`) with T053
-- [ ] T056 [US4] (Agent 2) Open PR #9 (`agent2-eval` → `001-manaca-instruct-tuning`) with T054
-- [ ] T057 [US4] (You) Code-review and merge PR #8 and PR #9
-- [ ] T058 [US4] (You) Run `src/publish.py` against your own Hugging Face token to push the repository — this is the one genuinely hard-to-reverse action in the whole feature (a public release), so treat it as a deliberate final sign-off, not a routine script run — depends on T044, T052, T057
-- [ ] T059 [US4] (You) Verify Acceptance Scenario 2: have someone unfamiliar with the project follow only the published model card to generate a response, with no undocumented steps
+- [X] T053 [P] [US4] (Agent 3) Implement `src/publish.py`: pushes the merged model + GGUF files + model card via `huggingface_hub` (`create_repo` + `upload_folder`), **refusing to run** if the model card is missing its `license` front-matter, either usage snippet, or a populated evaluation section — per `contracts/model-usage-contract.md`'s pre-publish gate — `_push_to_hub` is a documented seam (no HF token used; publishing stays your action per T058)
+- [X] T054 [P] [US4] (Agent 2) Draft the model card `MODEL_CARD.md` template (YAML front matter: `license: cc-by-nc-4.0`, `language: [pt]`, `base_model: menezesbruno/manaca-1b-base`) with all 6 required sections from `contracts/model-usage-contract.md`, including the SC-008 three-way comparison table generated from `eval/results/baseline.jsonl` + `eval/results/qlora-v1.jsonl` (or `v2`) + `eval/results/official-instruct.jsonl` — verified it passes `validate_model_card()` as-is; `<FILL: ...>` placeholders mark where real numbers go
+- [X] T055 [US4] (Agent 3) Open PR (`agent3-infra` → `001-manaca-instruct-tuning`) with T053 — [PR #8](https://github.com/Wolfloiz/manaca-instruct/pull/8), merged
+- [X] T056 [US4] (Agent 2) Open PR (`agent2-eval` → `001-manaca-instruct-tuning`) with T054 — [PR #9](https://github.com/Wolfloiz/manaca-instruct/pull/9), merged
+- [X] T057 [US4] (You) Code-review and merge PR #8 and PR #9
+- [ ] T058 [US4] (You) Run `src/publish.py` against your own Hugging Face token to push the repository — this is the one genuinely hard-to-reverse action in the whole feature (a public release), so treat it as a deliberate final sign-off, not a routine script run — depends on T044, T052, T057 — **not done**: no trained/evaluated model exists yet to publish, and this step is deliberately never automated
+- [ ] T059 [US4] (You) Verify Acceptance Scenario 2: have someone unfamiliar with the project follow only the published model card to generate a response, with no undocumented steps — **not done**: depends on T058
 
 **Checkpoint**: Manacá-Instruct-PT is public. SC-006 verified.
 
@@ -161,10 +171,10 @@ description: "Task list for Manacá-Instruct-PT (Core Lifecycle v1), organized f
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T060 [P] (Agent 1) Write the repository root `README.md` summarizing the project and linking to `specs/001-manaca-instruct-tuning/` and the published Hugging Face model
-- [ ] T061 (You) Run the full `quickstart.md` validation end-to-end as a final sign-off — this is also the SC-007 lifecycle-completeness check (every stage executed and documented at least once)
-- [ ] T062 (You) Open and merge the final PR: `001-manaca-instruct-tuning` → `main`
-- [ ] T063 (You) Tag the release (`git tag v1.0-manaca-instruct-pt && git push --tags`) and remove the 3 agent worktrees (`git worktree remove ../manaca-instruct-agent{1,2,3}-*`)
+- [X] T060 [P] (Agent 1) Write the repository root `README.md` summarizing the project and linking to `specs/001-manaca-instruct-tuning/` and the published Hugging Face model — [PR #10](https://github.com/Wolfloiz/manaca-instruct/pull/10), merged
+- [ ] T061 (You) Run the full `quickstart.md` validation end-to-end as a final sign-off — this is also the SC-007 lifecycle-completeness check (every stage executed and documented at least once) — **not done**: no real run exists yet (see all the "not done" items above — this is exactly what's still needed)
+- [ ] T062 (You) Open and merge the final PR: `001-manaca-instruct-tuning` → `main` — **deliberately not done yet**: merging to `main` now would misrepresent an unfinished feature (no trained model, no real evaluation, nothing published) as complete; do this after T058/T059
+- [ ] T063 (You) Tag the release (`git tag v1.0-manaca-instruct-pt && git push --tags`) and remove the 3 agent worktrees (`git worktree remove ../manaca-instruct-agent{1,2,3}-*`) — **not done**, same reason; the 3 worktrees are still there and ready for you to resume in
 
 ---
 
