@@ -1,0 +1,31 @@
+# QLoRA starting configuration — specs/001-manaca-instruct-tuning/research.md §2
+# Ranges match manaca-local-projeto.md §16, corroborated by an 8GB-VRAM profiling
+# study on a similarly-sized model (Qwen2.5-1.5B-Instruct on an RTX 4060).
+#
+# FR-005 budgets exactly one iteration round: if the first run (qlora-v1) misses
+# the FR-004 thresholds, adjust values within these ranges for qlora-v2 — do not
+# open a wider hyperparameter search.
+
+base_model: menezesbruno/manaca-1b-base
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+
+lora:
+  r: 16              # range: 8-16
+  alpha: 32           # range: 16-32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj]  # confirm against the actual Manaca-1B module names before first run
+
+training:
+  batch_size: 2                  # range: 1-2
+  gradient_accumulation_steps: 16 # range: 8-32
+  learning_rate: 1.5e-4           # range: 1e-4-2e-4
+  num_epochs: 2                   # range: 1-3
+  max_seq_length: 2048             # base model supports up to 4096; 2048 matches the RTX-4060 profiling study's validated ceiling
+  optimizer: paged_adamw_8bit
+
+output:
+  adapter_dir: adapters/qlora-v1

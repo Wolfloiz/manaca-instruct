@@ -1,0 +1,9 @@
+# Generation defaults for evaluation (src/evaluate.py) and benchmarking (src/benchmark.py).
+# Deterministic (do_sample: false) so the same prompt produces the same output across
+# repeated benchmark runs and across the base/instruct/official-instruct comparison.
+
+max_new_tokens: 256
+do_sample: false
+temperature: 1.0     # ignored when do_sample is false; kept explicit for when sampled runs are needed
+top_p: 1.0
+repetition_penalty: 1.1
