@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+dist/
+build/
+
+# Environment / secrets
+.env
+.env.*
+*.token
+
+# ML artifacts — too large for git; the trained/quantized model is distributed via Hugging Face (FR-009), not this repo
+adapters/
+models/merged/
+models/gguf/
+data/raw/
+data/processed/
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
