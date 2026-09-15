@@ -12,8 +12,13 @@ The GGUF model is exercised through llama.cpp's `llama-cli` (must be built
 locally, research.md §4): `_load_gguf_model()` runs a warm-up generation that
 forces the model into memory (so `load_time_s` is real), and
 `_run_generation_benchmark()` runs the timed generation and parses llama-cli's
-`llama_print_timings` stderr line for honest tokens/sec. Peak RAM is read from
-`/usr/bin/time -v` when available; VRAM from `nvidia-smi` when present.
+`llama_print_timings` stderr line for honest tokens/sec. Both go through
+`_run_and_measure()`, which runs llama-cli as a child process, polls
+`nvidia-smi` for peak VRAM *while the process is alive* (a single post-hoc
+read is too late for a short-lived one-shot process — by the time it
+returns, llama-cli has already exited and freed its VRAM), and reads peak
+child RSS via `resource.getrusage(RUSAGE_CHILDREN)` once it's done (accurate
+without needing an external `time` binary).
 """
 
 from __future__ import annotations
@@ -32,6 +37,11 @@ BENCHMARK_PROMPT = "Corrija gramaticalmente o texto: os documento foi enviado on
 DEFAULT_MAX_NEW_TOKENS = 128
 
 LLAMA_CLI_CANDIDATES = ("llama-cli", "llama.cpp/build/bin/llama-cli")
+
+SUBPROCESS_TIMEOUT_S = 120  # llama-cli hanging (e.g. waiting on stdin it'll never get) should
+# become a measured stalled_or_crashed: true, not an indefinitely frozen benchmark run
+
+VRAM_POLL_INTERVAL_S = 0.1
 
 
 def _find_llama_cli() -> str | None:
@@ -59,11 +69,8 @@ def _parse_tokens_per_second(stderr: str) -> float | None:
     return None
 
 
-def _read_vram_mb() -> int | None:
-    """Peak VRAM via nvidia-smi when present, else None (e.g. CPU-only Dell G3)."""
-    nvidia_smi = shutil.which("nvidia-smi")
-    if not nvidia_smi:
-        return None
+def _read_vram_mb(nvidia_smi: str) -> int | None:
+    """One instantaneous VRAM-used sample via nvidia-smi, or None if the read fails."""
     try:
         out = subprocess.run(
             [nvidia_smi, "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
@@ -76,46 +83,69 @@ def _read_vram_mb() -> int | None:
         return None
 
 
-SUBPROCESS_TIMEOUT_S = 120  # llama-cli hanging (e.g. waiting on stdin it'll never get) should
-# become a measured stalled_or_crashed: true, not an indefinitely frozen benchmark run
+def _peak_child_ram_mb() -> int | None:
+    """Peak RSS of completed child processes (KB -> MB), via RUSAGE_CHILDREN.
 
-
-def _run_with_timeout(command: list[str], **kwargs) -> subprocess.CompletedProcess:
-    """subprocess.run with a hard timeout, converting a hang into a synthetic failed result
-    instead of raising — found the hard way: llama-cli defaults to interactive/conversational
-    mode when a GGUF's metadata includes a chat template, and silently waits on stdin forever
-    without --single-turn (see _load_gguf_model/_run_generation_benchmark's command lists).
+    Accurate for a short-lived one-shot subprocess like a llama-cli run, and needs no
+    external `time` binary — this machine has none installed (`shutil.which("time")`
+    finds only the shell builtin), so the former `/usr/bin/time -v` branch always fell
+    through to `RUSAGE_SELF`, which measures the *parent* Python process's own tiny RSS,
+    not the llama-cli child's. RUSAGE_CHILDREN is cumulative across all children reaped
+    so far in this process, which is fine here: each call site cares about "how much RAM
+    did running llama-cli take", and later reads only ever report the same or a larger
+    number as more of the run completes.
     """
+    maxrss_kb = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    return maxrss_kb // 1024 if maxrss_kb else None
+
+
+def _run_and_measure(command: list[str]) -> tuple[subprocess.CompletedProcess, int | None, int | None]:
+    """Run `command` to completion, returning (result, ram_mb, vram_mb).
+
+    VRAM is polled from nvidia-smi while the process is alive rather than sampled once
+    after it exits, because llama-cli's warm-up/generation runs are short-lived
+    one-shot processes — by the time a post-hoc read would fire, the process has
+    already exited and freed its VRAM. `vram_mb` is None when nvidia-smi isn't present
+    (e.g. the CPU-only Dell G3). A run exceeding SUBPROCESS_TIMEOUT_S is killed and
+    reported as a synthetic failed result instead of hanging the benchmark forever —
+    found the hard way: llama-cli defaults to interactive/conversational mode when a
+    GGUF's metadata includes a chat template, and silently waits on stdin forever
+    without --single-turn (see _load_gguf_model/_run_generation_benchmark's commands).
+    """
+    nvidia_smi = shutil.which("nvidia-smi")
     try:
-        return subprocess.run(command, timeout=SUBPROCESS_TIMEOUT_S, **kwargs)
-    except subprocess.TimeoutExpired:
-        return subprocess.CompletedProcess(command, returncode=-1, stdout="", stderr="timed out")
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, returncode=-1, stdout="", stderr=str(exc)), None, None
 
+    start = time.monotonic()
+    peak_vram: int | None = None
+    timed_out = False
+    while proc.poll() is None:
+        if nvidia_smi:
+            sample = _read_vram_mb(nvidia_smi)
+            if sample is not None:
+                peak_vram = sample if peak_vram is None else max(peak_vram, sample)
+        if time.monotonic() - start > SUBPROCESS_TIMEOUT_S:
+            timed_out = True
+            proc.kill()
+            break
+        time.sleep(VRAM_POLL_INTERVAL_S)
 
-def _measure_peak_ram_mb(command: list[str]) -> tuple[int | None, subprocess.CompletedProcess]:
-    """Run `command`; return (peak RAM MB, result). Uses /usr/bin/time -v when available."""
-    time_bin = shutil.which("time") or shutil.which("/usr/bin/time")
-    use_gnu_time = time_bin and subprocess.run([time_bin, "--version"], capture_output=True).returncode == 0
-    if use_gnu_time:
-        result = _run_with_timeout([time_bin, "-v", *command], capture_output=True, text=True)
-        for line in reversed(result.stderr.splitlines()):
-            if "Maximum resident set size" in line:
-                try:
-                    return int(line.split(":")[-1].strip()) // 1024, result  # KB -> MB
-                except ValueError:
-                    break
-        return None, result
-    result = _run_with_timeout(command, capture_output=True, text=True)
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024  # rough parent-process floor
-    return peak, result
+    stdout, stderr = proc.communicate()
+    ram_mb = _peak_child_ram_mb()
+
+    if timed_out:
+        return subprocess.CompletedProcess(command, returncode=-1, stdout=stdout, stderr="timed out"), ram_mb, peak_vram
+    return subprocess.CompletedProcess(command, returncode=proc.returncode, stdout=stdout, stderr=stderr), ram_mb, peak_vram
 
 
 def _load_gguf_model(model_path: Path):
     """Warm up llama.cpp so the model is actually in memory; returns a handle dict.
 
-    The warm-up also captures the model's peak RAM footprint, which is kept on
-    the handle so the BenchmarkRecord's `ram_mb` reflects model load rather
-    than the benchmark subprocess's own transient allocations.
+    The warm-up also captures the model's peak RAM/VRAM footprint, which is kept on
+    the handle so the BenchmarkRecord reflects model load rather than only the
+    benchmark subprocess's own transient allocations.
     """
     llama_cli = _find_llama_cli()
     if not llama_cli:
@@ -124,18 +154,18 @@ def _load_gguf_model(model_path: Path):
         )
     if not _is_gguf(model_path):
         raise ValueError(f"not a GGUF file (missing GGUF magic bytes): {model_path}")
-    peak_ram, result = _measure_peak_ram_mb(
+    result, ram_mb, vram_mb = _run_and_measure(
         [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", "--single-turn"]
     )
     if result.returncode != 0:
         raise RuntimeError(f"llama-cli warm-up failed (exit {result.returncode}):\n{result.stderr}")
-    return {"path": str(model_path), "llama_cli": llama_cli, "ram_mb": peak_ram}
+    return {"path": str(model_path), "llama_cli": llama_cli, "ram_mb": ram_mb, "vram_mb": vram_mb}
 
 
 def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
     """Run a real generation through llama-cli and record throughput + resources."""
     start = time.monotonic()
-    _, result = _measure_peak_ram_mb(
+    result, ram_mb, vram_mb = _run_and_measure(
         [
             model["llama_cli"],
             "-m", model["path"],
@@ -156,10 +186,14 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
     if tokens_per_second is None and elapsed_s > 0 and output_tokens.strip():
         tokens_per_second = len(output_tokens.split()) / elapsed_s  # honest fallback, not silent default
 
+    # peak-so-far across warm-up + this run; prefer this call's reading, it's the most complete
+    ram_mb = ram_mb if ram_mb is not None else model.get("ram_mb")
+    vram_mb = vram_mb if vram_mb is not None else model.get("vram_mb")
+
     return {
         "tokens_per_second": tokens_per_second if tokens_per_second is not None else 0.0,
-        "vram_mb": _read_vram_mb(),
-        "ram_mb": model.get("ram_mb"),
+        "vram_mb": vram_mb,
+        "ram_mb": ram_mb,
         "stalled_or_crashed": stalled,
     }
 
