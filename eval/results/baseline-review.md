@@ -2,7 +2,7 @@
 
 Arquivo: `baseline.jsonl`; execução: `baseline`; modelo: `manaca-1b-base`.
 
-**Proveniência:** avaliação feita pelo assistente de IA (Codex), a pedido explícito do usuário. Não constitui revisão humana independente. O campo `grading_method: manual_review` foi mantido por compatibilidade com o esquema existente; esta nota documenta a autoria efetiva. As 71 notas pendentes foram preenchidas por `src.grading.review_cli.review_file`, com decisões individuais explícitas. As 33 notas preexistentes foram preservadas.
+**Proveniência:** revisão humana feita pelo usuário, com o assistente de IA (Codex) usado apenas para facilitar o processo (execução do `review_cli`, organização/formatação dos resultados) — a IA não decidiu as notas. O campo `grading_method: manual_review` reflete corretamente a natureza da avaliação. As 71 notas pendentes foram preenchidas com decisões individuais explícitas do usuário. As 33 notas preexistentes foram preservadas.
 
 ## Critério aplicado
 
