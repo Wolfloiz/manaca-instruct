@@ -2,6 +2,10 @@
 
 Governs `src/run_manifest.py` (new) and the files `adapters/<run_id>/run_manifest.json` (written by `src/train_qlora.py` next to the adapter, gitignored with it) with its **tracked copy** `runs/<run_id>.manifest.json` (same bytes; `runs/` is a new version-controlled directory so training provenance is reviewable in PRs even though adapters are not committed), and `eval/results/<run_id>.manifest.json` (written by `src/evaluate.py`). Also governs the training-side changes in `src/train_qlora.py` that the manifest records (held-out evaluation, response-only objective).
 
+## API (as merged in PR #26)
+
+`src.run_manifest.build_manifest(kind, run_id, *, base_model, datasets, config, prompt_format, status="ok", error=None, **extra) -> dict` assembles the common fields below plus any `extra` (training-only / evaluation-only fields); `src.run_manifest.write_manifest(path, manifest, copies=[...]) -> dict` writes it and byte-identical copies (training runs pass `copies=[Path("runs") / f"{run_id}.manifest.json"]`). `sha256_of(path)` is exported for the preparation report.
+
 ## Common fields
 
 ```json

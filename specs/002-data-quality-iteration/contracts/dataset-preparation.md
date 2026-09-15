@@ -23,7 +23,7 @@ Pipeline order (each stage is a pure function over lists of rows and is unit-tes
 7. **Dev set** (optional) — 10 rows per category sampled (seeded) from the *validation* split, written as `EvaluationPrompt` rows with `group: "dev"`.
 8. **Report** — `data/dataset_report.md` and `.json`.
 
-`normalize(text)` = NFKC → lowercase → collapse whitespace → strip trailing `.`/spaces; it is the single shared implementation in `src/text_normalize.py`, also used by `src/grading/rule_based.py`.
+`normalize(text, strip_trailing_period=True)` = NFKD + strip combining marks (accent-insensitive, so it agrees with how `src/grading/rule_based.py` already grades classification) → lowercase → collapse whitespace → strip trailing `.`/spaces; single shared implementation in `src/text_normalize.py` (merged in PR #24). `rule_based.py` delegates with `strip_trailing_period=False` so classification scoring stays byte-identical to feature 001's.
 
 ### Guarantees (contract tests over the produced files)
 

@@ -23,7 +23,7 @@ format_prompt(instruction: str, input: str = "", output: str | None = None) -> s
 
 Rules:
 - `instruction` and `input` are optional and appear together or not at all.
-- When present: `instruction + ": " + input == prompt` byte-for-byte (contract test over every row of the file).
+- When present: `instruction + ": " + input == prompt` byte-for-byte, or `instruction == prompt` when `input` is empty (the empty form only occurs in `dev` rows built from validation examples without an input; every `grupo_a` row has a non-empty `input`). Enforced by `validate_evaluation_prompt` (PR #25) and by the contract test over every row of the file.
 - `prompt` is never modified (FR-022). The split is authored once by hand and reviewed; no runtime splitting.
 - `grupo_b` rows never carry the fields.
 - `group` may be `grupo_a` | `grupo_b` | `dev` (`dev` only in `data/dev/dev_prompts.jsonl`; `dev` rows additionally carry `source_id`).
