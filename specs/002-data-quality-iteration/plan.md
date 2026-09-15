@@ -107,7 +107,51 @@ manaca-instruct/
                                        #   test_seed_examples, test_results_immutability (001 files byte-identical after a blind session)
 ```
 
-**Structure Decision**: Keep the single-project layout of 001 and extend it in place — every change is a flag, a field, a new small module, or a new output file beside an existing one. Three things were deliberately *not* done: no new top-level package for "v3" (the point is one pipeline whose runs are distinguished by manifests, not by code copies); no experiment-tracking service (manifests on disk are reviewable in PRs, which is how this project audits itself); and no runtime splitting of evaluation prompts (the split is data, authored once and checked by a reconstruction test). Agent ownership follows 001: Agent 1 — `prepare_dataset.py`, `grammar_rewriting.py`, `quality.py`, `text_normalize.py`; Agent 2 — `open_ended_tasks.py`, `prompt_format.py`, `evaluate.py`, `review_cli.py`, `report.py`, eval prompt split fields; Agent 3 — `train_qlora.py`, `run_manifest.py`, `configs/train.yaml`; You — seed generation/review, all grading, both training runs, the adoption decision.
+**Structure Decision**: Keep the single-project layout of 001 and extend it in place — every change is a flag, a field, a new small module, or a new output file beside an existing one. Three things were deliberately *not* done: no new top-level package for "v3" (the point is one pipeline whose runs are distinguished by manifests, not by code copies); no experiment-tracking service (manifests on disk are reviewable in PRs, which is how this project audits itself); and no runtime splitting of evaluation prompts (the split is data, authored once and checked by a reconstruction test). Ownership of every path above is assigned in the Delivery Workflow section below.
+
+## Delivery Workflow — 3 agents + You, worktrees / PRs / code review (same model as feature 001)
+
+The author's constraint from 001 still holds: agents parallelize *artifact creation* (code, tests, data-preparation logic, report tooling); GPU runs, manual grading, data-quality judgment, seed-example review, PR review/merge and the adoption decision are inherently sequential and stay with the author. Everything is controlled through GitHub — no direct pushes of agent-owned code; run outputs and bookkeeping are the only direct commits, exactly as in 001.
+
+### Branches and worktrees
+
+| Owner | Scope in this feature | Worktree | Branch |
+|---|---|---|---|
+| **You** | Integration branch owner; seed generation + row-by-row review (`data/seed/`); all blind grading sessions; both candidate training runs (+ conditional ones); grammar sample audit; presentation and adoption decisions; PR review/merge; committing run outputs (`-blind` files, manifests, `dataset_report`, `adoption-decision.md`) | main checkout (repo root) | `002-data-quality-iteration` (integration branch, **to be created** from the head of `001-manaca-instruct-tuning`) |
+| **Agent 1** — data | `src/text_normalize.py` (foundation), `src/dataset_filters/quality.py`, `src/dataset_filters/grammar_rewriting.py` (word boundaries, code exclusion), `src/prepare_dataset.py` (`--seed-dir`, `--dev-out`, quality filter, `_dedupe_examples`, report writer), contract tests over produced files and over `data/seed/` | `../manaca-instruct-agent1-dataset` (exists) | `agents/agent1-dataset` (exists; rebase onto the new integration branch) |
+| **Agent 2** — evaluation | `src/prompt_format.py` (foundation), `src/dataset_filters/open_ended_tasks.py` (simplification exclusions, input required, label-in-instruction), `src/evaluate.py` (`--prompt-format`, `--inference-config`, `dev` group, evaluation manifest write), `src/grading/review_cli.py` (`--blind`, `--shuffle-seed`, `--interleave`, `-blind` output), `src/grading/report.py`, `src/grading/rule_based.py` (use shared normalizer), `src/schema_validation.py` (split-field pairing rule, `dev` group), the authored `instruction`/`input` fields in `data/eval/grupo_a_prompts.jsonl` + reconstruction contract test, results-immutability contract test | `../manaca-instruct-agent2-eval` (exists) | `agents/agent2-eval` (exists; rebase) |
+| **Agent 3** — training infra | `src/run_manifest.py`, `src/train_qlora.py` (`--validation`, per-epoch held-out eval, keep all checkpoints, last-epoch adapter, prompt-completion path, overlap pre-check, manifest + `runs/` copy, dead-code removal), `configs/train.yaml` (`completion_only_loss`), `runs/` directory, `.gitignore` if needed | `../manaca-instruct-agent3-infra` (exists) | `agents/agent3-infra` (exists; rebase) |
+
+Shared files touched by more than one agent (`src/schema_validation.py`, `src/prepare_dataset.py` → `open_ended_tasks.py` import surface) are handled by ordering, not by co-editing: the foundation PRs land first, and the later PR rebases on them.
+
+### GitHub workflow (applies to every task the tasks phase will generate)
+
+1. **Trunk**: `main` — PR-only by convention (server-side branch protection is still unavailable on this plan for a private repo, as found in 001 T003).
+2. **Integration branch**: `002-data-quality-iteration`, cut from the current head of `001-manaca-instruct-tuning` so it carries the fixed benchmark code, the v2 artifacts and all 002 documents. Agents open PRs **into it**, never into `001-…` or `main`.
+3. **Merge order at the end**: `002-data-quality-iteration` → `001-manaca-instruct-tuning` (one reviewed PR, because 001's publication step is what consumes this feature's decision, FR-023) → 001 completes T058/T059 → `001-manaca-instruct-tuning` → `main` (001's T062). 002 is never merged to `main` on its own.
+4. **Per-agent branch**: each agent works only in its own worktree on its own branch, rebased onto `origin/002-data-quality-iteration` before starting each task group (`git fetch origin && git rebase origin/002-data-quality-iteration`).
+5. **Code review**: before merging any agent PR, run `/code-review` — `/code-review high` for `train_qlora.py`, `prepare_dataset.py` and `review_cli.py` (the first two decide what the model learns; the third writes the grades the whole feature depends on and must never touch a frozen file) — then `gh pr review --approve` and `gh pr merge`. You remain the sole human reviewer, so the automated pass is the second pair of eyes, not optional.
+6. **Commit granularity**: one PR per task group; foundation PRs deliberately tiny.
+7. **Direct commits allowed (You only, on the integration branch)**: run outputs and bookkeeping — `eval/results/*-blind.jsonl`, `eval/results/*.manifest.json`, `runs/*.manifest.json`, `data/dataset_report.{md,json}`, regenerated `data/train.jsonl`/`validation.jsonl`, `data/dev/`, `data/seed/` (your reviewed rows + README), `eval/results/presentation-experiment.md`, `final-table.md`, `adoption-decision.md`, `tasks.md` status updates. Never source code.
+8. **Frozen-file guard**: every PR touching `src/grading/review_cli.py` or `src/evaluate.py` must keep the results-immutability contract test green; any diff to `eval/results/{baseline,qlora-v1,qlora-v2,official-instruct}.jsonl` or `data/eval/*.jsonl`'s `prompt` values is a review blocker (FR-022).
+
+### Sequencing and parallelism
+
+```text
+Phase F  (foundation, serial, ~1 h)   Agent 1: text_normalize.py + tests ──┐  Agent 2: prompt_format.py + tests ──┐
+                                                                           ├─ both merged before anything else ─┤
+Phase A  (parallel)                   Agent 2: split fields + --prompt-format + manifest write in evaluate.py; review_cli --blind/--interleave; report.py
+                                      Agent 1: quality.py; grammar filter; prepare_dataset dedupe/quality/seed-dir/dev-out/report
+                                      Agent 3: run_manifest.py; train_qlora.py changes; configs/train.yaml
+                                      Agent 2 (after Agent 1's text_normalize): open_ended_tasks.py filters; rule_based.py normalizer
+Gate 1   (You)                        merge Phase A PRs → run US1: v2-split evaluation, blind interleaved grading (~176), report, presentation decision, official[-split] grading (~88)
+Gate 2   (You)                        generate + review seed rows, README → run prepare_dataset → audit 30 grammar rows → commit data + report
+Phase B  (You, GPU)                   smoke run (US3) → qlora-v3a → qlora-v3b → evaluations (+ v3b-best) → blind grading (~88 each) → final table → adoption-decision.md
+Phase C  (conditional, You + Agent 3) up to 3 single-factor runs on the dev set, one PR per config change if code is touched
+Close    (You)                        002 → 001 PR; unblock 001's T058
+```
+
+Agent 3 is idle after Phase A unless Phase C needs code (e.g. `prepare_model_for_kbit_training` gating, `target_modules` config); Agent 1 and Agent 2 are idle after Gate 2 except for review-driven fixes — the same load profile as 001's later phases, where the author's serial work dominated.
 
 ## Complexity Tracking
 
