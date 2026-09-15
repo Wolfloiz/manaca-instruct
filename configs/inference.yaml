@@ -6,4 +6,8 @@ max_new_tokens: 256
 do_sample: false
 temperature: 1.0     # ignored when do_sample is false; kept explicit for when sampled runs are needed
 top_p: 1.0
-repetition_penalty: 1.1
+repetition_penalty: 1.3     # raised from 1.1 — the untuned base model was collapsing into pure
+# repeated-token runs (e.g. "########...") on ~24% of the real baseline's manual_review prompts
+no_repeat_ngram_size: 3     # hard-blocks any 3-gram from repeating — the standard fix for exact-loop
+# degeneration; combined with the higher repetition_penalty above (found while grading the real
+# baseline run, 2026-09-15)
