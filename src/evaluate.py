@@ -97,7 +97,7 @@ def _load_model(model_name: str, adapter_path: str | None):
     tokenizer = AutoTokenizer.from_pretrained(base_repo)
     model = AutoModelForCausalLM.from_pretrained(
         base_repo,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         device_map="auto",
     )
 
