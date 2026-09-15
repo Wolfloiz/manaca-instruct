@@ -32,7 +32,7 @@ Represents one fixed prompt in the evaluation set (`data/eval/grupo_a_prompts.js
 | `task_category` | string \| null | One of the five categories for `grupo_a`; `null` for `grupo_b` (general-language prompts aren't category-scoped). |
 | `prompt` | string | The full instruction+input text as it will be sent to each model. |
 | `expected` | string \| null | Reference answer, required for rule-graded prompts (grammar correction, classification); `null` for manually-reviewed prompts, per the grading-method split in the Clarifications session. |
-| `grading_method` | string | `rule_based` \| `manual_review`, fixed per FR-004's hybrid split: `rule_based` for `grammar_correction`/`classification`, `manual_review` for everything else including all of `grupo_b`. |
+| `grading_method` | string | `rule_based` \| `manual_review`. Originally FR-004's hybrid split was `rule_based` for `grammar_correction`/`classification`; **updated 2026-09-15** — `grammar_correction` moved to `manual_review` after real evaluation showed its edit-distance scorer couldn't tell a genuinely correct fix (that also paraphrased content) from an off-topic failure (see research.md §3's update). `rule_based` is now `classification` only; `manual_review` covers everything else, including all of `grupo_b`. |
 
 **Validation rules**:
 - `grupo_a` prompt count MUST cover all five `task_category` values, roughly 15–20 prompts each (spec.md Assumptions).
