@@ -76,12 +76,28 @@ def _read_vram_mb() -> int | None:
         return None
 
 
+SUBPROCESS_TIMEOUT_S = 120  # llama-cli hanging (e.g. waiting on stdin it'll never get) should
+# become a measured stalled_or_crashed: true, not an indefinitely frozen benchmark run
+
+
+def _run_with_timeout(command: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """subprocess.run with a hard timeout, converting a hang into a synthetic failed result
+    instead of raising — found the hard way: llama-cli defaults to interactive/conversational
+    mode when a GGUF's metadata includes a chat template, and silently waits on stdin forever
+    without --single-turn (see _load_gguf_model/_run_generation_benchmark's command lists).
+    """
+    try:
+        return subprocess.run(command, timeout=SUBPROCESS_TIMEOUT_S, **kwargs)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(command, returncode=-1, stdout="", stderr="timed out")
+
+
 def _measure_peak_ram_mb(command: list[str]) -> tuple[int | None, subprocess.CompletedProcess]:
     """Run `command`; return (peak RAM MB, result). Uses /usr/bin/time -v when available."""
     time_bin = shutil.which("time") or shutil.which("/usr/bin/time")
     use_gnu_time = time_bin and subprocess.run([time_bin, "--version"], capture_output=True).returncode == 0
     if use_gnu_time:
-        result = subprocess.run([time_bin, "-v", *command], capture_output=True, text=True)
+        result = _run_with_timeout([time_bin, "-v", *command], capture_output=True, text=True)
         for line in reversed(result.stderr.splitlines()):
             if "Maximum resident set size" in line:
                 try:
@@ -89,7 +105,7 @@ def _measure_peak_ram_mb(command: list[str]) -> tuple[int | None, subprocess.Com
                 except ValueError:
                     break
         return None, result
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = _run_with_timeout(command, capture_output=True, text=True)
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024  # rough parent-process floor
     return peak, result
 
@@ -108,7 +124,9 @@ def _load_gguf_model(model_path: Path):
         )
     if not _is_gguf(model_path):
         raise ValueError(f"not a GGUF file (missing GGUF magic bytes): {model_path}")
-    peak_ram, result = _measure_peak_ram_mb([llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1"])
+    peak_ram, result = _measure_peak_ram_mb(
+        [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", "--single-turn"]
+    )
     if result.returncode != 0:
         raise RuntimeError(f"llama-cli warm-up failed (exit {result.returncode}):\n{result.stderr}")
     return {"path": str(model_path), "llama_cli": llama_cli, "ram_mb": peak_ram}
@@ -124,6 +142,7 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
             "-p", prompt,
             "-n", str(max_new_tokens),
             "--no-display-prompt",
+            "--single-turn",
             "--temp", "0",
             "-c", "4096",
         ]
