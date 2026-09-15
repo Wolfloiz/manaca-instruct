@@ -18,7 +18,17 @@ from typing import Iterable, Iterator
 SOURCE_NAME = "alpaca-pt-br"
 HF_DATASET_ID = "dominguesm/alpaca-data-pt-br"
 
-_GRAMMAR_KEYWORDS = re.compile(r"corrij|gramátic|gramatical|ortográfic|ortografia", re.IGNORECASE)
+_GRAMMAR_KEYWORDS = re.compile(
+    r"corrij|gramátic|gramatical|ortográfic|ortografia|"
+    r"erro(s)? de (escrita|texto|concordância)|revis(e|ão|ar)|conserte|"
+    r"escrev(a|er) corretamente|sintax(e|is)",
+    re.IGNORECASE,
+)
+# Widened 2026-09-15 for qlora-v2 (FR-005's iteration round): the original 5-term
+# pattern matched only 523/51,759 alpaca-pt-br rows, well under the 1000/category
+# cap the other categories hit. The wider pattern matches 765 — still short of
+# 1000, but a real +46% gain verified against the actual dataset before landing
+# this change (not a guess).
 _REWRITING_KEYWORDS = re.compile(
     r"reescreva|reescrever|reformul|parafrase|tom (mais|profissional)|de maneira profissional|forma formal",
     re.IGNORECASE,
