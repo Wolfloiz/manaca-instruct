@@ -32,6 +32,7 @@ from typing import Iterator
 import yaml
 
 from src.grading.rule_based import score_rule_based
+from src.prompt_format import format_prompt
 from src.schema_validation import RULE_BASED_CATEGORIES, validate_evaluation_prompt, validate_evaluation_result
 
 KNOWN_MODELS = {
@@ -56,7 +57,7 @@ def _read_prompts(paths: list[Path]) -> Iterator[dict]:
 
 
 def _format_inference_prompt(prompt_text: str) -> str:
-    """### Instrução / ### Resposta template, matching src/train_qlora.py's _format_prompt.
+    """### Instrução / ### Resposta template, via the shared src/prompt_format.py.
 
     Applied uniformly to all three evaluated models (base, our instruct, and the
     official instruct release) for a controlled comparison. This is what
@@ -68,7 +69,7 @@ def _format_inference_prompt(prompt_text: str) -> str:
     this is a known, documented limitation of the three-way comparison, not an
     oversight — see MODEL_CARD.md's Known limitations section.
     """
-    return f"### Instrução:\n{prompt_text}\n\n### Resposta:\n"
+    return format_prompt(prompt_text)
 
 
 def _load_inference_config(path: Path = DEFAULT_INFERENCE_CONFIG_PATH) -> dict:

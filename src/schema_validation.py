@@ -24,7 +24,11 @@ RULE_BASED_CATEGORIES = {"classification"}
 
 GRADING_METHODS = {"rule_based", "manual_review"}
 
-EVAL_GROUPS = {"grupo_a", "grupo_b"}
+EVAL_GROUPS = {"grupo_a", "grupo_b", "dev"}
+# "dev" (added for feature 002): data/dev/dev_prompts.jsonl, sampled from validation data for
+# tuning decisions so the frozen grupo_a/grupo_b set is never reused for them (002 FR-005).
+
+CATEGORY_SCOPED_GROUPS = {"grupo_a", "dev"}
 
 EVAL_MODELS = {"manaca-1b-base", "manaca-instruct-pt", "manaca-1b-instruct"}
 
@@ -70,13 +74,41 @@ def validate_evaluation_prompt(record: dict) -> None:
         )
     if record["group"] == "grupo_b" and record["task_category"] is not None:
         raise SchemaError(f"EvaluationPrompt {record.get('id')!r}: grupo_b rows must have task_category: null")
-    if record["group"] == "grupo_a" and record["task_category"] not in TASK_CATEGORIES:
+    if record["group"] in CATEGORY_SCOPED_GROUPS and record["task_category"] not in TASK_CATEGORIES:
         raise SchemaError(
-            f"EvaluationPrompt {record.get('id')!r}: grupo_a task_category must be one of {sorted(TASK_CATEGORIES)}"
+            f"EvaluationPrompt {record.get('id')!r}: {record['group']} task_category must be one of "
+            f"{sorted(TASK_CATEGORIES)}"
         )
     if record["grading_method"] == "rule_based" and not record["expected"]:
         raise SchemaError(
             f"EvaluationPrompt {record.get('id')!r}: rule_based prompts require a non-null expected value"
+        )
+    _validate_split_fields(record)
+
+
+def _validate_split_fields(record: dict) -> None:
+    """Optional `instruction`/`input` annotation of a frozen `prompt` (002 contracts/evaluation-presentation.md).
+
+    The split exists so the evaluator can present a prompt in the training structure
+    (`### Instrução` / `### Entrada`) without changing the frozen text, so the two fields
+    must reconstruct `prompt` exactly — anything else would be a silent edit of the
+    evaluation set (002 FR-022).
+    """
+    has_instruction = "instruction" in record
+    has_input = "input" in record
+    if has_instruction != has_input:
+        raise SchemaError(
+            f"EvaluationPrompt {record.get('id')!r}: instruction and input must be present together or not at all"
+        )
+    if not has_instruction:
+        return
+    if record["group"] == "grupo_b":
+        raise SchemaError(f"EvaluationPrompt {record.get('id')!r}: grupo_b rows must not carry instruction/input")
+    reconstructed = f"{record['instruction']}: {record['input']}" if record["input"] else record["instruction"]
+    if reconstructed != record["prompt"]:
+        raise SchemaError(
+            f"EvaluationPrompt {record.get('id')!r}: instruction/input do not reconstruct prompt exactly "
+            f"({reconstructed!r} != {record['prompt']!r})"
         )
 
 
