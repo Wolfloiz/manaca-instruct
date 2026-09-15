@@ -14,11 +14,11 @@ VALID_EXAMPLE = {
 }
 
 VALID_GRUPO_A_RULE_BASED = {
-    "id": "grupo_a-grammar-003",
+    "id": "grupo_a-classification-003",
     "group": "grupo_a",
-    "task_category": "grammar_correction",
-    "prompt": "Corrija: os relatório foi enviado ontem",
-    "expected": "O relatório foi enviado ontem.",
+    "task_category": "classification",
+    "prompt": "Classifique: Meu pedido ainda não chegou.",
+    "expected": "reclamação",
     "grading_method": "rule_based",
 }
 

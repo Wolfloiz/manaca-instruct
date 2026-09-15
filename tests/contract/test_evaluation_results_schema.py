@@ -5,12 +5,12 @@ import pytest
 from src.schema_validation import SchemaError, validate_evaluation_result
 
 VALID_RULE_BASED_RESULT = {
-    "id": "grupo_a-grammar-003",
-    "task_category": "grammar_correction",
+    "id": "grupo_a-classification-003",
+    "task_category": "classification",
     "model": "manaca-instruct-pt",
-    "prompt": "Corrija: os relatório foi enviado ontem",
-    "expected": "O relatório foi enviado ontem.",
-    "output": "O relatório foi enviado ontem.",
+    "prompt": "Classifique: Meu pedido ainda não chegou.",
+    "expected": "reclamação",
+    "output": "reclamação",
     "grading_method": "rule_based",
     "score": 1,
     "run_id": "qlora-v1",
