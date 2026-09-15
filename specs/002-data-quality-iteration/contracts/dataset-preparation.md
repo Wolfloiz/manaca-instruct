@@ -16,7 +16,9 @@ Pipeline order (each stage is a pure function over lists of rows and is unit-tes
    - classification: `len(output.split()) <= 4` and normalized `output` contained in normalized `instruction`;
    - rewriting / summarization: unchanged.
 2. **Seed rows** loaded from `--seed-dir` (every `*.jsonl`) and appended.
-3. **Quality filter** — drop rows where `is_degenerate_output(output)` is true (any category).
+3. **Quality filter** — drop rows where `is_degenerate_output(output)` is true (any category): a character repeated ≥ 6 times, a 2-character cycle repeated ≥ 4 times (`srsrsrsr`), a token+space repeated ≥ 4 times (`Drs, Drs, Drs, Drs,`), or ≤ 8 distinct characters in ≥ 30 characters. Calibrated on the real `train.jsonl` (research.md §4): 39 rows, none legitimate. A distinct/length *ratio* is deliberately not used — it is length-blind and flags ordinary long summaries.
+
+Filter modules report what they drop through an optional keyword: `filter_grammar_and_rewriting(rows, stats: collections.Counter | None = None)` and `filter_open_ended_tasks(rows, stats=None)` increment `stats["no_output"]`, `stats["exclude_regex"]`, `stats["missing_input"]`, `stats["label_not_in_instruction"]` when given; rows matching no category keyword are not counted (they are unselected, not dropped). `prepare_dataset` passes one Counter to both and folds it into `dropped_by_reason`.
 4. **Eval overlap** — existing `_dedupe_against_eval`, now also comparing against the split `(instruction, input)` of evaluation prompts.
 5. **Dedupe** — by normalized `(instruction, input, output)`, then by normalized `(instruction, input)`; first occurrence wins; runs before any shuffle.
 6. **Shuffle** (seeded) → **cap per category** (unchanged: 1,000) → **split** train/validation (unchanged: 10%).
