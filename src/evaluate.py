@@ -131,6 +131,7 @@ def _generate(model, tokenizer, prompt: str, inference_config: dict) -> tuple[st
             temperature=inference_config.get("temperature", 1.0),
             top_p=inference_config.get("top_p", 1.0),
             repetition_penalty=inference_config.get("repetition_penalty", 1.0),
+            no_repeat_ngram_size=inference_config.get("no_repeat_ngram_size", 0),
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
     latency_ms = (time.monotonic() - start) * 1000
