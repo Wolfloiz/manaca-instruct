@@ -3,17 +3,16 @@
 
 Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
 
-    python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
+    python src/train_qlora.py --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
 
 Implements FR-002 (QLoRA fine-tuning) using the starting configuration from
 research.md §2 / configs/train.yaml. FR-005 budgets exactly one iteration
 round (run-id qlora-v2) if the first run misses the FR-004 thresholds.
 
-NOTE: `_build_model()`/`_run_training()` are documented seams, not wired to
-real bitsandbytes/peft/trl calls — this file was authored during a
-scaffolding-only pass with no GPU execution in scope (tasks.md Phase 4 scope
-note). `load_config()` and `load_training_examples()` are the real,
-unit-tested parts.
+Heavy ML dependencies (torch/transformers/peft/bitsandbytes/trl/datasets) are
+imported lazily inside the seam functions so this module stays importable in
+test environments without the CUDA stack; install requirements.txt before a
+real training run (tasks.md T038).
 """
 
 from __future__ import annotations
@@ -81,17 +80,89 @@ def _format_prompt(example: dict) -> str:
 
 
 def _build_model(config: dict[str, Any]):
-    """Seam for real transformers/peft/bitsandbytes model construction — not implemented in this pass."""
-    raise NotImplementedError(
-        "src/train_qlora.py's _build_model is a documented seam, not yet wired to "
-        "transformers/peft/bitsandbytes — see this file's module docstring. "
-        "Implement before running a real training pass (tasks.md T038)."
+    """Load the 4-bit quantized base model + tokenizer and wrap it with LoRA (research.md §2).
+
+    Returns a `peft.PeftModel` (via `get_peft_model`). Requires the CUDA torch
+    build + bitsandbytes/peft/transformers from requirements.txt; imports are
+    deferred so tests without the ML stack don't need them.
+    """
+    import torch
+    from peft import LoraConfig, get_peft_model
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+    quant = config["quantization"]
+    compute_dtype = getattr(torch, quant.get("bnb_4bit_compute_dtype", "bfloat16"))
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=quant.get("load_in_4bit", True),
+        bnb_4bit_quant_type=quant.get("bnb_4bit_quant_type", "nf4"),
+        bnb_4bit_compute_dtype=compute_dtype,
     )
+
+    model = AutoModelForCausalLM.from_pretrained(
+        config["base_model"],
+        quantization_config=bnb_config,
+        device_map="auto",
+        torch_dtype=compute_dtype,
+        trust_remote_code=True,
+    )
+    model.config.use_cache = False
+
+    tokenizer = AutoTokenizer.from_pretrained(config["base_model"])
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    lora = config["lora"]
+    lora_config = LoraConfig(
+        r=lora["r"],
+        lora_alpha=lora["alpha"],
+        lora_dropout=lora["dropout"],
+        target_modules=lora["target_modules"],
+        task_type="CAUSAL_LM",
+    )
+    return get_peft_model(model, lora_config), tokenizer
 
 
 def _run_training(model, tokenizer, examples: list[dict], config: dict[str, Any], output_dir: Path):
-    """Seam for the real trl.SFTTrainer training loop — not implemented in this pass."""
-    raise NotImplementedError("src/train_qlora.py's _run_training is a documented seam — see _build_model's docstring.")
+    """Run the SFT training loop and save the adapter + tokenizer to output_dir.
+
+    Uses `trl.SFTTrainer` with the `### Instrução/### Entrada/### Resposta`
+    prompt template from `_format_prompt`, a configuration validated against
+    research.md §2's ranges by `load_config`. The 4-bit-loaded base model is
+    kept frozen by the PeftModel wrapper — only the LoRA adapters train.
+    """
+    from datasets import Dataset
+    from trl import SFTTrainer
+    from transformers import TrainingArguments
+
+    train = config["training"]
+
+    training_args = TrainingArguments(
+        output_dir=str(output_dir),
+        per_device_train_batch_size=train["batch_size"],
+        gradient_accumulation_steps=train["gradient_accumulation_steps"],
+        learning_rate=train["learning_rate"],
+        num_train_epochs=train["num_epochs"],
+        optim=train["optimizer"],
+        save_strategy="epoch",
+        logging_steps=10,
+        report_to=[],  # no external experiment trackers
+        fp16=True,
+        seed=42,
+    )
+
+    dataset = Dataset.from_list([{"text": _format_prompt(ex)} for ex in examples])
+
+    trainer = SFTTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        args=training_args,
+        train_dataset=dataset,
+        max_seq_length=train["max_seq_length"],
+        dataset_text_field="text",
+    )
+    trainer.train()
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
 
 
 def train(config_path: Path, dataset_path: Path, run_id: str) -> Path:

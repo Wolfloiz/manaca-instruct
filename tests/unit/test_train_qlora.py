@@ -91,7 +91,7 @@ def test_format_prompt_omits_empty_input_section():
     assert "### Entrada:" not in formatted
 
 
-def test_train_model_building_is_a_documented_seam(tmp_path):
+def test_train_orchestrates_build_and_run_with_mocked_ml_stack(tmp_path, monkeypatch):
     config_path = _write_yaml(tmp_path, VALID_CONFIG)
     dataset_path = tmp_path / "train.jsonl"
     dataset_path.write_text(
@@ -108,6 +108,23 @@ def test_train_model_building_is_a_documented_seam(tmp_path):
         + "\n",
         encoding="utf-8",
     )
-    # _build_model is not wired to real weights in this scaffolding-only pass (see train_qlora.py's docstring)
-    with pytest.raises(NotImplementedError):
-        train(config_path, dataset_path, "qlora-test")
+
+    built = object()
+    monkeypatch.setattr("src.train_qlora._build_model", lambda config: (built, None))
+    saved_examples = []
+    saved_dir = None
+
+    def fake_run_training(model, tokenizer, examples, config, output_dir):
+        assert model is built
+        saved_examples.extend(examples)
+        nonlocal saved_dir
+        saved_dir = output_dir
+
+    monkeypatch.setattr("src.train_qlora._run_training", fake_run_training)
+
+    output_dir = train(config_path, dataset_path, "qlora-test")
+
+    assert output_dir.name == "qlora-test"
+    assert str(output_dir) == "adapters/qlora-test"
+    assert saved_dir == output_dir
+    assert [ex["id"] for ex in saved_examples] == ["x-1"]
