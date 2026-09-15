@@ -11,14 +11,16 @@ src/schema_validation.py's RULE_BASED_CATEGORIES comment.
 
 from __future__ import annotations
 
-import unicodedata
+from src.text_normalize import normalize
 
 
 def _normalize_label(text: str) -> str:
-    """Case/whitespace/accent-insensitive normalization for classification labels."""
-    text = unicodedata.normalize("NFKD", text.strip().lower())
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return " ".join(text.split())
+    """Case/whitespace/accent-insensitive normalization for classification labels.
+
+    strip_trailing_period=False keeps this scorer byte-identical to feature 001's, so
+    classification scores of new runs stay comparable with the frozen v2/official ones.
+    """
+    return normalize(text, strip_trailing_period=False)
 
 
 def score_classification(output: str, expected: str) -> float:
