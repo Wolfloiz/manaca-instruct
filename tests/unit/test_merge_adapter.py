@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.merge_adapter import _base_model_name, merge_adapter
+from src.merge_adapter import _base_model_name, _copy_raw_tokenizer_files, merge_adapter
 
 
 def test_merge_adapter_rejects_missing_adapter_path(tmp_path):
@@ -59,3 +59,26 @@ def test_merge_adapter_orchestrates_load_and_merge_with_mocked_stack(tmp_path, m
     assert result == out_dir
     assert out_dir.is_dir()
     assert saved_to == [(fake_model, out_dir)]
+
+
+def test_copy_raw_tokenizer_files_fetches_and_copies(tmp_path, monkeypatch):
+    # simulate a cached tokenizer.model but no special_tokens_map.json for this repo
+    cached_file = tmp_path / "cache" / "tokenizer.model"
+    cached_file.parent.mkdir(parents=True)
+    cached_file.write_text("fake sentencepiece model", encoding="utf-8")
+
+    from huggingface_hub.errors import EntryNotFoundError
+
+    def fake_hf_hub_download(repo_id, filename):
+        if filename == "tokenizer.model":
+            return str(cached_file)
+        raise EntryNotFoundError(f"no {filename} for {repo_id}")
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_hf_hub_download)
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    _copy_raw_tokenizer_files("menezesbruno/manaca-1b-base", out_dir)
+
+    assert (out_dir / "tokenizer.model").read_text(encoding="utf-8") == "fake sentencepiece model"
+    assert not (out_dir / "special_tokens_map.json").exists()  # EntryNotFoundError -> skipped, not an error
