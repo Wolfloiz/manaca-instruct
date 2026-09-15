@@ -10,6 +10,15 @@ Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
         --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
         --run-id qlora-v1 --out eval/results/qlora-v1.jsonl
 
+    # feature 002: present grupo_a prompts in the training structure (### Instrução / ### Entrada)
+    python -m src.evaluate --model manaca-instruct-pt --adapter adapters/qlora-v2 \
+        --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
+        --prompt-format split --run-id qlora-v2-split --out eval/results/qlora-v2-split.jsonl
+
+Every run also writes `<out>.manifest.json` next to the results (specs/002
+contracts/run-manifest-schema.md, evaluation fields) so a result file can be
+traced to its adapter, prompt presentation, inference config and code version.
+
 Implements FR-001/FR-003/FR-004 and the contracts/evaluation-results-schema.md
 producer rules: rule_based rows are scored immediately; manual_review rows are
 written with score: null for src/grading/review_cli.py to fill in later.
@@ -33,6 +42,7 @@ import yaml
 
 from src.grading.rule_based import score_rule_based
 from src.prompt_format import format_prompt
+from src.run_manifest import build_manifest, write_manifest
 from src.schema_validation import RULE_BASED_CATEGORIES, validate_evaluation_prompt, validate_evaluation_result
 
 KNOWN_MODELS = {
@@ -42,6 +52,8 @@ KNOWN_MODELS = {
 }
 
 DEFAULT_INFERENCE_CONFIG_PATH = Path("configs/inference.yaml")
+
+PROMPT_FORMATS = ("combined", "split")
 
 
 def _read_prompts(paths: list[Path]) -> Iterator[dict]:
@@ -72,6 +84,28 @@ def _format_inference_prompt(prompt_text: str) -> str:
     return format_prompt(prompt_text)
 
 
+def _format_row_prompt(row: dict, prompt_format: str) -> str:
+    """`combined` = the frozen single-line prompt (feature 001's presentation); `split` = the
+    authored instruction/input annotation rendered in the training structure (002 FR-003).
+
+    A grupo_a row without the split fields is an error under `split`, not a silent fallback —
+    mixing presentations inside one run would make the run id lie about what was measured.
+    grupo_b rows never carry the fields and always use the combined form.
+    """
+    if prompt_format == "combined":
+        return _format_inference_prompt(row["prompt"])
+    if prompt_format != "split":
+        raise ValueError(f"prompt_format must be one of {PROMPT_FORMATS}, got {prompt_format!r}")
+    if "instruction" in row:
+        return format_prompt(row["instruction"], row["input"])
+    if row["group"] == "grupo_b":
+        return _format_inference_prompt(row["prompt"])
+    raise ValueError(
+        f"{row['id']}: --prompt-format split requires instruction/input fields on every grupo_a row "
+        "(see specs/002-data-quality-iteration/contracts/evaluation-presentation.md)"
+    )
+
+
 def _load_inference_config(path: Path = DEFAULT_INFERENCE_CONFIG_PATH) -> dict:
     if not path.exists():
         return {"max_new_tokens": 256, "do_sample": False, "temperature": 1.0, "top_p": 1.0, "repetition_penalty": 1.1}
@@ -79,7 +113,11 @@ def _load_inference_config(path: Path = DEFAULT_INFERENCE_CONFIG_PATH) -> dict:
         return yaml.safe_load(f)
 
 
-def _load_model(model_name: str, adapter_path: str | None):
+def _base_repo_for(model_name: str) -> str:
+    return KNOWN_MODELS["manaca-1b-base"] if model_name == "manaca-instruct-pt" else KNOWN_MODELS[model_name]
+
+
+def _load_model(model_name: str, adapter_path: str | None, inference_config_path: Path = DEFAULT_INFERENCE_CONFIG_PATH):
     """Load a model+tokenizer via transformers, optionally with a LoRA adapter via peft.
 
     Per manaca-local-projeto.md's own baseline example (§2.6/§12): bfloat16,
@@ -88,12 +126,9 @@ def _load_model(model_name: str, adapter_path: str | None):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    if model_name == "manaca-instruct-pt":
-        if adapter_path is None:
-            raise ValueError("manaca-instruct-pt requires --adapter")
-        base_repo = KNOWN_MODELS["manaca-1b-base"]
-    else:
-        base_repo = KNOWN_MODELS[model_name]
+    if model_name == "manaca-instruct-pt" and adapter_path is None:
+        raise ValueError("manaca-instruct-pt requires --adapter")
+    base_repo = _base_repo_for(model_name)
 
     tokenizer = AutoTokenizer.from_pretrained(base_repo)
     model = AutoModelForCausalLM.from_pretrained(
@@ -108,7 +143,7 @@ def _load_model(model_name: str, adapter_path: str | None):
         model = PeftModel.from_pretrained(model, adapter_path)
 
     model.eval()
-    inference_config = _load_inference_config()
+    inference_config = _load_inference_config(inference_config_path)
     return model, tokenizer, inference_config
 
 
@@ -142,15 +177,24 @@ def _generate(model, tokenizer, prompt: str, inference_config: dict) -> tuple[st
     return text.strip(), latency_ms
 
 
-def run_evaluation(model_key: str, adapter_path: str | None, prompt_files: list[Path], run_id: str) -> list[dict]:
+def run_evaluation(
+    model_key: str,
+    adapter_path: str | None,
+    prompt_files: list[Path],
+    run_id: str,
+    prompt_format: str = "combined",
+    inference_config_path: Path = DEFAULT_INFERENCE_CONFIG_PATH,
+) -> list[dict]:
     if model_key not in KNOWN_MODELS:
         raise ValueError(f"Unknown --model {model_key!r}; must be one of {sorted(KNOWN_MODELS)}")
+    if prompt_format not in PROMPT_FORMATS:
+        raise ValueError(f"Unknown --prompt-format {prompt_format!r}; must be one of {PROMPT_FORMATS}")
 
-    model, tokenizer, inference_config = _load_model(model_key, adapter_path)
+    model, tokenizer, inference_config = _load_model(model_key, adapter_path, inference_config_path)
 
     results = []
     for prompt_row in _read_prompts(prompt_files):
-        formatted_prompt = _format_inference_prompt(prompt_row["prompt"])
+        formatted_prompt = _format_row_prompt(prompt_row, prompt_format)
         output, latency_ms = _generate(model, tokenizer, formatted_prompt, inference_config)
 
         result = {
@@ -188,6 +232,49 @@ def write_results_jsonl(results: list[dict], out_path: Path) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _adapter_manifest_path(adapter_path: str | None) -> str | None:
+    if adapter_path is None:
+        return None
+    for candidate in (Path(adapter_path) / "run_manifest.json", Path(adapter_path).parent / "run_manifest.json"):
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def write_evaluation_manifest(
+    out_path: Path,
+    *,
+    model_key: str,
+    adapter_path: str | None,
+    prompt_files: list[Path],
+    run_id: str,
+    prompt_format: str,
+    inference_config_path: Path,
+    rows_written: int,
+) -> Path:
+    """`<out>.manifest.json` per specs/002 contracts/run-manifest-schema.md (evaluation fields)."""
+    manifest_path = out_path.with_suffix(".manifest.json")
+    is_checkpoint = adapter_path is not None and "checkpoint-" in Path(adapter_path).name
+    manifest = build_manifest(
+        "evaluation",
+        run_id,
+        base_model=_base_repo_for(model_key),
+        datasets=[Path(p) for p in prompt_files],
+        config=_load_inference_config(inference_config_path),
+        prompt_format=prompt_format,
+        model=model_key,
+        adapter_path=None if adapter_path is None else str(adapter_path),
+        checkpoint=str(adapter_path) if is_checkpoint else None,
+        adapter_manifest=_adapter_manifest_path(adapter_path),
+        inference_config_path=str(inference_config_path),
+        prompt_files=[str(p) for p in prompt_files],
+        results_path=str(out_path),
+        rows_written=rows_written,
+    )
+    write_manifest(manifest_path, manifest)
+    return manifest_path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True, choices=sorted(KNOWN_MODELS))
@@ -195,14 +282,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prompts", nargs="+", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--prompt-format", choices=PROMPT_FORMATS, default="combined")
+    parser.add_argument("--inference-config", type=Path, default=DEFAULT_INFERENCE_CONFIG_PATH)
     args = parser.parse_args(argv)
 
     if args.model == "manaca-instruct-pt" and not args.adapter:
         parser.error("--adapter is required when --model manaca-instruct-pt")
 
-    results = run_evaluation(args.model, args.adapter, args.prompts, args.run_id)
+    results = run_evaluation(
+        args.model, args.adapter, args.prompts, args.run_id, args.prompt_format, args.inference_config
+    )
     write_results_jsonl(results, args.out)
-    print(f"Wrote {len(results)} results to {args.out}")
+    manifest_path = write_evaluation_manifest(
+        args.out,
+        model_key=args.model,
+        adapter_path=args.adapter,
+        prompt_files=args.prompts,
+        run_id=args.run_id,
+        prompt_format=args.prompt_format,
+        inference_config_path=args.inference_config,
+        rows_written=len(results),
+    )
+    print(f"Wrote {len(results)} results to {args.out} (manifest: {manifest_path})")
     return 0
 
 
