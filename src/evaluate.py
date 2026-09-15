@@ -14,12 +14,10 @@ Implements FR-001/FR-003/FR-004 and the contracts/evaluation-results-schema.md
 producer rules: rule_based rows are scored immediately; manual_review rows are
 written with score: null for src/grading/review_cli.py to fill in later.
 
-NOTE: model loading/generation is intentionally left as a documented seam
-(`_load_model`, `_generate`) rather than implemented against real HF weights —
-this file was authored during a scaffolding-only pass with no model downloads
-or GPU execution in scope (see specs/001-manaca-instruct-tuning/tasks.md,
-Phase 3). Wire `_load_model`/`_generate` to `transformers`/`peft` before the
-first real run (T024).
+`_load_model`/`_generate` use deferred imports (torch/transformers/peft loaded
+inside the function, not at module level) so this module stays importable —
+and unit-testable — without those heavy dependencies installed; only a real
+run needs them (tasks.md T024/T039/T040).
 """
 
 from __future__ import annotations
@@ -31,6 +29,8 @@ import time
 from pathlib import Path
 from typing import Iterator
 
+import yaml
+
 from src.grading.rule_based import score_rule_based
 from src.schema_validation import RULE_BASED_CATEGORIES, validate_evaluation_prompt, validate_evaluation_result
 
@@ -39,6 +39,8 @@ KNOWN_MODELS = {
     "manaca-instruct-pt": None,  # base model + --adapter path, resolved at load time
     "manaca-1b-instruct": "menezesbruno/manaca-1b-instruct",
 }
+
+DEFAULT_INFERENCE_CONFIG_PATH = Path("configs/inference.yaml")
 
 
 def _read_prompts(paths: list[Path]) -> Iterator[dict]:
@@ -53,17 +55,73 @@ def _read_prompts(paths: list[Path]) -> Iterator[dict]:
                 yield row
 
 
+def _load_inference_config(path: Path = DEFAULT_INFERENCE_CONFIG_PATH) -> dict:
+    if not path.exists():
+        return {"max_new_tokens": 256, "do_sample": False, "temperature": 1.0, "top_p": 1.0, "repetition_penalty": 1.1}
+    with path.open(encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
 def _load_model(model_name: str, adapter_path: str | None):
-    """Seam for the real transformers/peft loading code — not implemented in this pass."""
-    raise NotImplementedError(
-        "src/evaluate.py's _load_model is a documented seam, not yet wired to transformers/peft — "
-        "see this file's module docstring. Implement before running against real weights (tasks.md T024/T039/T040)."
+    """Load a model+tokenizer via transformers, optionally with a LoRA adapter via peft.
+
+    Per manaca-local-projeto.md's own baseline example (§2.6/§12): bfloat16,
+    device_map="auto" so it lands on the GPU when CUDA is available.
+    """
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    if model_name == "manaca-instruct-pt":
+        if adapter_path is None:
+            raise ValueError("manaca-instruct-pt requires --adapter")
+        base_repo = KNOWN_MODELS["manaca-1b-base"]
+    else:
+        base_repo = KNOWN_MODELS[model_name]
+
+    tokenizer = AutoTokenizer.from_pretrained(base_repo)
+    model = AutoModelForCausalLM.from_pretrained(
+        base_repo,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
     )
+
+    if model_name == "manaca-instruct-pt":
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter_path)
+
+    model.eval()
+    inference_config = _load_inference_config()
+    return model, tokenizer, inference_config
 
 
 def _generate(model, tokenizer, prompt: str, inference_config: dict) -> tuple[str, float]:
-    """Seam for real generation — returns (output_text, latency_ms). Not implemented in this pass."""
-    raise NotImplementedError("src/evaluate.py's _generate is a documented seam — see _load_model's docstring.")
+    """Generate a response and return (output_text, latency_ms).
+
+    Decodes only the newly generated tokens (not the echoed prompt), matching
+    what a downloader following the model card's usage snippet would see.
+    """
+    import torch
+
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    prompt_length = inputs["input_ids"].shape[1]
+
+    start = time.monotonic()
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=inference_config.get("max_new_tokens", 256),
+            do_sample=inference_config.get("do_sample", False),
+            temperature=inference_config.get("temperature", 1.0),
+            top_p=inference_config.get("top_p", 1.0),
+            repetition_penalty=inference_config.get("repetition_penalty", 1.0),
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+        )
+    latency_ms = (time.monotonic() - start) * 1000
+
+    generated_tokens = output[0][prompt_length:]
+    text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+    return text.strip(), latency_ms
 
 
 def run_evaluation(model_key: str, adapter_path: str | None, prompt_files: list[Path], run_id: str) -> list[dict]:
