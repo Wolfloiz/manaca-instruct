@@ -17,7 +17,7 @@ lora:
   r: 16              # range: 8-16
   alpha: 32           # range: 16-32
   dropout: 0.05
-  target_modules: [q_proj, k_proj, v_proj, o_proj]  # confirm against the actual Manaca-1B module names before first run
+  target_modules: [q_proj, k_proj, v_proj, o_proj]  # confirmed: manaca-1b-base's config.json shows a standard LlamaForCausalLM, so these are the real module names
 
 training:
   batch_size: 2                  # range: 1-2

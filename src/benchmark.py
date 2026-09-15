@@ -2,8 +2,8 @@
 
 Usage:
 
-    python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
-    python src/benchmark.py --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
+    python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine rtx-5050 --out benchmarks/rtx-5050.jsonl
+    python -m src.benchmark --model models/gguf/manaca-instruct-pt-Q4_K_M.gguf --machine dell-g3 --out benchmarks/dell-g3.jsonl
 
 Implements FR-007/FR-008 and data-model.md's BenchmarkRecord: tokens_per_second,
 load_time_s, vram_mb, ram_mb, stalled_or_crashed, written as one JSONL row per run.
@@ -146,20 +146,39 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
 
 
 def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> dict:
+    """Note: pre-flight problems (bad --machine, missing/non-GGUF file, no llama-cli on
+    PATH) raise — those are setup errors, not a benchmark result. A failure *during* the
+    actual warm-up/generation (llama-cli exits non-zero, e.g. OOM) is caught here and
+    recorded as `stalled_or_crashed: True` instead, per SC-004/data-model.md's
+    BenchmarkRecord — a crash is itself a measured result, not something to hide behind
+    an uncaught exception (spec.md's Edge Cases section).
+    """
     if machine not in KNOWN_MACHINES:
         raise ValueError(f"Unknown --machine {machine!r}; must be one of {sorted(KNOWN_MACHINES)}")
     if not model_path.exists():
         raise FileNotFoundError(f"GGUF model file does not exist: {model_path}")
 
+    quant_level = model_path.stem.rsplit("-", 1)[-1]
     start = time.monotonic()
-    model = _load_gguf_model(model_path)
+    try:
+        model = _load_gguf_model(model_path)
+    except RuntimeError:
+        return {
+            "machine": machine,
+            "quant_level": quant_level,
+            "tokens_per_second": 0.0,
+            "load_time_s": time.monotonic() - start,
+            "vram_mb": None,
+            "ram_mb": None,
+            "stalled_or_crashed": True,
+        }
     load_time_s = time.monotonic() - start
 
     result = _run_generation_benchmark(model, BENCHMARK_PROMPT, max_new_tokens)
 
     return {
         "machine": machine,
-        "quant_level": model_path.stem.rsplit("-", 1)[-1],
+        "quant_level": quant_level,
         "tokens_per_second": result["tokens_per_second"],
         "load_time_s": load_time_s,
         "vram_mb": result.get("vram_mb"),

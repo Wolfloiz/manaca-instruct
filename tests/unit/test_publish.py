@@ -106,8 +106,12 @@ def test_push_to_hub_uploads_model_gguf_and_card(tmp_path, monkeypatch):
             self.calls.append(("file", kwargs))
 
     fake_api = FakeApi()
-    monkeypatch.setattr(publish_mod, "HfApi", lambda: fake_api)
-    monkeypatch.setattr(publish_mod, "create_repo", lambda **kw: None)
+    # _push_to_hub imports HfApi/create_repo lazily from huggingface_hub inside the
+    # function (see src/publish.py's module docstring), so there's no publish_mod.HfApi
+    # to patch — patch the source module instead; the deferred `from huggingface_hub
+    # import HfApi` picks up the patched name when the function actually runs.
+    monkeypatch.setattr("huggingface_hub.HfApi", lambda: fake_api)
+    monkeypatch.setattr("huggingface_hub.create_repo", lambda **kw: None)
     monkeypatch.setenv("HUGGING_FACE_HUB_TOKEN", "hf_fake")
 
     url = publish_mod._push_to_hub(model_dir, gguf_dir, VALID_CARD, "someuser/manaca-instruct-pt")
@@ -124,6 +128,8 @@ def test_push_to_hub_requires_a_token(tmp_path, monkeypatch):
     import src.publish as publish_mod
 
     monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
-    monkeypatch.setattr(publish_mod.Path.home, lambda: tmp_path)  # no cached HF token either
+    # setattr(bound_method, ...) isn't valid monkeypatch usage — patch the "home" name
+    # on the Path class itself so publish_mod.Path.home() picks it up.
+    monkeypatch.setattr(publish_mod.Path, "home", lambda: tmp_path)  # no cached HF token either
     with pytest.raises(RuntimeError, match="token"):
         publish_mod._push_to_hub(tmp_path / "model", tmp_path / "gguf", VALID_CARD, "someuser/manaca-instruct-pt")

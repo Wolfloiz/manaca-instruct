@@ -2,7 +2,7 @@
 
 Usage:
 
-    python src/merge_adapter.py --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
+    python -m src.merge_adapter --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
 
 Implements the merge step of FR-006. The adapter's `adapter_config.json`
 records `base_model_name_or_path`, so the base model is re-derived from the
@@ -41,9 +41,9 @@ def _load_base_and_adapter(adapter_path: Path):
     base_model_name = _base_model_name(adapter_path)
     model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         device_map="auto",
-        trust_remote_code=True,
+        # no trust_remote_code — see src/train_qlora.py's _build_model for why
     )
     model = PeftModel.from_pretrained(model, adapter_path)
     model.tokenizer = AutoTokenizer.from_pretrained(base_model_name)
