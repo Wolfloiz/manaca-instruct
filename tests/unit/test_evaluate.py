@@ -39,22 +39,14 @@ def test_run_evaluation_rejects_unknown_model(tmp_path):
         run_evaluation("not-a-real-model", None, [], "run1")
 
 
-def test_run_evaluation_model_loading_is_a_documented_seam(tmp_path):
-    prompt_file = tmp_path / "prompts.jsonl"
-    prompt_file.write_text(
-        json.dumps(
-            {
-                "id": "p1",
-                "group": "grupo_a",
-                "task_category": "classification",
-                "prompt": "Classifique: oi",
-                "expected": "dúvida",
-                "grading_method": "rule_based",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    # _load_model is not wired to real weights in this scaffolding-only pass (see evaluate.py's docstring)
-    with pytest.raises(NotImplementedError):
-        run_evaluation("manaca-1b-base", None, [prompt_file], "run1")
+def test_run_evaluation_manaca_instruct_pt_requires_adapter(tmp_path):
+    # _load_model raises before any network/GPU work if --adapter is missing for this model
+    with pytest.raises(ValueError, match="requires --adapter"):
+        run_evaluation("manaca-instruct-pt", None, [], "run1")
+
+
+# NOTE: _load_model/_generate now do real transformers/peft loading and GPU
+# inference (see evaluate.py's docstring) — exercising them for real belongs
+# to specs/001-manaca-instruct-tuning/quickstart.md's manual validation path,
+# not this fast unit suite, since it needs real model weights, a GPU, and
+# real wall-clock time to download/run.
