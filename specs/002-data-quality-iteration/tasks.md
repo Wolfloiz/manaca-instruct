@@ -37,7 +37,7 @@ description: "Task list for the Data Quality & Evaluation Iteration (Manacá-Ins
 - [X] T002 [P] (You) Sync Agent 1's worktree: in `../manaca-instruct-agent1-dataset`, `git fetch origin && git rebase origin/002-data-quality-iteration && git push --force-with-lease` — **done**
 - [X] T003 [P] (You) Sync Agent 2's worktree: in `../manaca-instruct-agent2-eval`, same commands — **done**
 - [X] T004 [P] (You) Sync Agent 3's worktree: in `../manaca-instruct-agent3-infra`, same commands — **done** (all three rebased to the 002 head; force-pushed with lease)
-- [X] T005 (You) Confirm the starting state on the integration branch: `~/.venvs/global/bin/python3 -m pytest tests/ -q` → all green (82 at planning time); `sha256sum eval/results/{baseline,qlora-v1,qlora-v2,official-instruct}.jsonl > /tmp/frozen-before.txt` for later comparison — **done**: 82 passed; frozen SHA256 (baseline `8e07ebfc…8304`, qlora-v1 `2bf1c504…0ac4`, qlora-v2 `286abe87…620d`, official-instruct `aec23419…3e9f3`; full values in T018's test once it lands)
+- [X] T005 (You) Confirm the starting state on the integration branch: `~/.venvs/global/bin/python3 -m pytest tests/ -q` → all green (82 at planning time); `sha256sum eval/results/{baseline,qlora-v1,qlora-v2,official-instruct}.jsonl > /tmp/frozen-before.txt` for later comparison — **done**: 82 passed; frozen SHA256 (baseline `8e07ebfc…8304`, qlora-v1 `2bf1c504…0ac4`, qlora-v2 `286abe87…620d`, official-instruct `aec23419…df9e3`; full values in T018's test once it lands)
 
 ---
 
