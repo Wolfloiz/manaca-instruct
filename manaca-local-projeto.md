@@ -276,7 +276,7 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL)
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
-    torch_dtype=torch.bfloat16,
+    dtype=torch.bfloat16, // torch_dtype está depreciado
     device_map="auto"
 )
 
