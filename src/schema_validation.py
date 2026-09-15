@@ -16,7 +16,11 @@ TASK_CATEGORIES = {
     "classification",
 }
 
-RULE_BASED_CATEGORIES = {"grammar_correction", "classification"}
+RULE_BASED_CATEGORIES = {"classification"}
+# grammar_correction moved to manual_review (2026-09-15): edit-distance-to-a-single-reference
+# couldn't distinguish a genuinely good correction (different valid phrasing) from an off-topic
+# failure -- both landed at low similarity. Reading qlora-v1's real outputs found ~31% genuine
+# grammar fixes that the scorer reported as 0%. See research.md §3's update.
 
 GRADING_METHODS = {"rule_based", "manual_review"}
 
