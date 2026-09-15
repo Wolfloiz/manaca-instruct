@@ -47,7 +47,31 @@ def _load_base_and_adapter(adapter_path: Path):
     )
     model = PeftModel.from_pretrained(model, adapter_path)
     model.tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    model.base_model_name = base_model_name  # kept for _merge_and_save's raw-file copy
     return model
+
+
+_RAW_TOKENIZER_FILES = ("tokenizer.model", "special_tokens_map.json")
+
+
+def _copy_raw_tokenizer_files(base_model_name: str, out_dir: Path) -> None:
+    """AutoTokenizer.save_pretrained() can silently drop files a fast tokenizer doesn't
+    round-trip (e.g. the raw SentencePiece tokenizer.model) — found the hard way when
+    llama.cpp's convert_hf_to_gguf.py couldn't build a vocab from our merged output even
+    though the original base model repo ships tokenizer.model. Fetch those specific files
+    straight from the base repo instead of trusting the round-trip.
+    """
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+
+    for filename in _RAW_TOKENIZER_FILES:
+        try:
+            cached_path = hf_hub_download(repo_id=base_model_name, filename=filename)
+        except EntryNotFoundError:
+            continue  # not every model ships every one of these (e.g. pure-BPE tokenizers)
+        import shutil
+
+        shutil.copy(cached_path, out_dir / filename)
 
 
 def _merge_and_save(model, out_dir: Path) -> None:
@@ -57,6 +81,9 @@ def _merge_and_save(model, out_dir: Path) -> None:
     tokenizer = getattr(model, "tokenizer", None)
     if tokenizer is not None:
         tokenizer.save_pretrained(out_dir)
+    base_model_name = getattr(model, "base_model_name", None)
+    if base_model_name is not None:
+        _copy_raw_tokenizer_files(base_model_name, out_dir)
 
 
 def merge_adapter(adapter_path: Path, out_dir: Path) -> Path:
