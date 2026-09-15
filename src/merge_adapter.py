@@ -2,31 +2,61 @@
 
 Usage:
 
-    python -m src.merge_adapter --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
+    python src/merge_adapter.py --adapter adapters/qlora-v1 --out models/merged/manaca-instruct-pt
 
-Implements the merge step of FR-006. NOTE: `_load_base_and_adapter()` and
-`_merge_and_save()` are documented seams — see src/train_qlora.py's module
-docstring for why (no GPU/model execution in this scaffolding-only pass).
+Implements the merge step of FR-006. The adapter's `adapter_config.json`
+records `base_model_name_or_path`, so the base model is re-derived from the
+adapter itself — no separate --base-model flag needed. ML imports are lazy
+(see src/train_qlora.py's module docstring for why).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 
+def _base_model_name(adapter_path: Path) -> str:
+    config_path = adapter_path / "adapter_config.json"
+    if not config_path.exists():
+        raise FileNotFoundError(
+            f"adapter path has no adapter_config.json — not a PeftModel adapter: {adapter_path}"
+        )
+    with config_path.open(encoding="utf-8") as f:
+        config = json.load(f)
+    base = config.get("base_model_name_or_path")
+    if not base:
+        raise ValueError(f"adapter_config.json is missing base_model_name_or_path: {config_path}")
+    return base
+
+
 def _load_base_and_adapter(adapter_path: Path):
-    """Seam for real peft.PeftModel.from_pretrained loading — not implemented in this pass."""
-    raise NotImplementedError(
-        "src/merge_adapter.py's _load_base_and_adapter is a documented seam, not yet wired to "
-        "peft — implement before merging a real trained adapter (tasks.md T049)."
+    """Load the base model from the adapter's adapter_config.json and attach the LoRA adapter."""
+    import torch
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    base_model_name = _base_model_name(adapter_path)
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
     )
+    model = PeftModel.from_pretrained(model, adapter_path)
+    model.tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    return model
 
 
 def _merge_and_save(model, out_dir: Path) -> None:
-    """Seam for real PeftModel.merge_and_unload() + save_pretrained() — not implemented in this pass."""
-    raise NotImplementedError("src/merge_adapter.py's _merge_and_save is a documented seam — see the module docstring.")
+    """Merge LoRA weights into the base weights and save a standalone model + tokenizer."""
+    merged = model.merge_and_unload()
+    merged.save_pretrained(out_dir, safe_serialization=True)
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is not None:
+        tokenizer.save_pretrained(out_dir)
 
 
 def merge_adapter(adapter_path: Path, out_dir: Path) -> Path:
