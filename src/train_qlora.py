@@ -3,7 +3,7 @@
 
 Usage (per specs/001-manaca-instruct-tuning/quickstart.md):
 
-    python src/train_qlora.py --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
+    python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
 
 Implements FR-002 (QLoRA fine-tuning) using the starting configuration from
 research.md §2 / configs/train.yaml. FR-005 budgets exactly one iteration
@@ -102,8 +102,10 @@ def _build_model(config: dict[str, Any]):
         config["base_model"],
         quantization_config=bnb_config,
         device_map="auto",
-        torch_dtype=compute_dtype,
-        trust_remote_code=True,
+        dtype=compute_dtype,
+        # no trust_remote_code: menezesbruno/manaca-1b-base is a standard LlamaForCausalLM
+        # (confirmed via its config.json — no auto_map/custom modeling code), so there's
+        # no reason to grant arbitrary code execution from the repo.
     )
     model.config.use_cache = False
 
@@ -131,12 +133,16 @@ def _run_training(model, tokenizer, examples: list[dict], config: dict[str, Any]
     kept frozen by the PeftModel wrapper — only the LoRA adapters train.
     """
     from datasets import Dataset
-    from trl import SFTTrainer
-    from transformers import TrainingArguments
+    from trl import SFTConfig, SFTTrainer
 
     train = config["training"]
 
-    training_args = TrainingArguments(
+    # trl >=1.0's SFTTrainer moved dataset_text_field/max_length (renamed from
+    # max_seq_length) onto SFTConfig, and renamed the tokenizer kwarg to
+    # processing_class — this is the current API, not trl 0.9.x's (verified
+    # against the actually-installed trl 1.13.0; requirements.txt's pin was
+    # updated to match, see its comment).
+    training_args = SFTConfig(
         output_dir=str(output_dir),
         per_device_train_batch_size=train["batch_size"],
         gradient_accumulation_steps=train["gradient_accumulation_steps"],
@@ -146,19 +152,20 @@ def _run_training(model, tokenizer, examples: list[dict], config: dict[str, Any]
         save_strategy="epoch",
         logging_steps=10,
         report_to=[],  # no external experiment trackers
-        fp16=True,
+        bf16=True,  # matches configs/train.yaml's bnb_4bit_compute_dtype (bfloat16) — fp16 here would
+        # fight the bf16-loaded model's dtype (mismatched autocast/GradScaler assumptions)
         seed=42,
+        max_length=train["max_seq_length"],
+        dataset_text_field="text",
     )
 
     dataset = Dataset.from_list([{"text": _format_prompt(ex)} for ex in examples])
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         args=training_args,
         train_dataset=dataset,
-        max_seq_length=train["max_seq_length"],
-        dataset_text_field="text",
     )
     trainer.train()
     model.save_pretrained(output_dir)

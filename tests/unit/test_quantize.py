@@ -74,12 +74,17 @@ def test_run_conversion_and_quantize_use_real_subprocess(tmp_path, monkeypatch):
         "out.write_text('stub f16 gguf')\n",
         encoding="utf-8",
     )
+    # _run_quantize invokes this path directly (real llama-quantize is a compiled
+    # binary, not "python llama-quantize"), so the stub needs a shebang + exec bit —
+    # a plain script file isn't spawnable on its own (PermissionError otherwise).
     quantize_bin = tmp_path / "llama-quantize"
     quantize_bin.write_text(
+        "#!/usr/bin/env python3\n"
         "import pathlib, sys\n"
         "pathlib.Path(sys.argv[2]).write_text('stub quantized')\n",
         encoding="utf-8",
     )
+    quantize_bin.chmod(0o755)
 
     f16 = tmp_path / "model-f16.gguf"
     _run_conversion(model_dir, f16, convert_script)

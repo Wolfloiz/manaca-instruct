@@ -2,7 +2,7 @@
 
 Usage:
 
-    python src/publish.py --model models/merged/manaca-instruct-pt --gguf-dir models/gguf/ \\
+    python -m src.publish --model models/merged/manaca-instruct-pt --gguf-dir models/gguf/ \\
         --eval-results eval/results/qlora-v1.jsonl eval/results/baseline.jsonl eval/results/official-instruct.jsonl \\
         --repo-id <hf-username>/manaca-instruct-pt
 
