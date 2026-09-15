@@ -55,6 +55,22 @@ def _read_prompts(paths: list[Path]) -> Iterator[dict]:
                 yield row
 
 
+def _format_inference_prompt(prompt_text: str) -> str:
+    """### Instrução / ### Resposta template, matching src/train_qlora.py's _format_prompt.
+
+    Applied uniformly to all three evaluated models (base, our instruct, and the
+    official instruct release) for a controlled comparison. This is what
+    manaca-instruct-pt was actually fine-tuned to expect (train_qlora.py formats
+    every training example the same way) — evaluating it without this template
+    would unfairly handicap it relative to the untuned base model, which doesn't
+    care about the template either way. The official menezesbruno/manaca-1b-instruct
+    release may have been trained on a different (e.g. Alpaca-style) template, so
+    this is a known, documented limitation of the three-way comparison, not an
+    oversight — see MODEL_CARD.md's Known limitations section.
+    """
+    return f"### Instrução:\n{prompt_text}\n\n### Resposta:\n"
+
+
 def _load_inference_config(path: Path = DEFAULT_INFERENCE_CONFIG_PATH) -> dict:
     if not path.exists():
         return {"max_new_tokens": 256, "do_sample": False, "temperature": 1.0, "top_p": 1.0, "repetition_penalty": 1.1}
@@ -132,7 +148,8 @@ def run_evaluation(model_key: str, adapter_path: str | None, prompt_files: list[
 
     results = []
     for prompt_row in _read_prompts(prompt_files):
-        output, latency_ms = _generate(model, tokenizer, prompt_row["prompt"], inference_config)
+        formatted_prompt = _format_inference_prompt(prompt_row["prompt"])
+        output, latency_ms = _generate(model, tokenizer, formatted_prompt, inference_config)
 
         result = {
             "id": prompt_row["id"],

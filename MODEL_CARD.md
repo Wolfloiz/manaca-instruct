@@ -87,6 +87,12 @@ from `eval/results/*.jsonl` — not hand-typed.
   (ARC-Challenge-PT ≈ 27%, per `.specify/assessments/manaca-instruct-pt/research.md`) — this is a
   real ceiling on tasks that need more than surface-level pattern completion, independent of
   fine-tuning quality.
+- All three models in the evaluation table above were prompted with the same
+  `### Instrução:\n{prompt}\n\n### Resposta:\n` template (the one `manaca-instruct-pt` was
+  fine-tuned on). The official `menezesbruno/manaca-1b-instruct` release may have been trained on
+  a different template (its card mentions an Alpaca-PT-style format), so its numbers here may
+  understate its real-world performance under its own preferred prompting — this was a deliberate
+  choice for a controlled, apples-to-apples comparison, not an oversight.
 - Trained on a ~3,000–5,000 example blend of `dominguesm/alpaca-data-pt-br` and
   `dominguesm/Canarim-Instruct-PTBR-Dataset`; not a large-scale or professionally curated dataset.
 - <FILL: measured tokens/second on <FILL: quantization level> — honest number, not the ~70 tok/s

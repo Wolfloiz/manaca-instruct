@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.evaluate import _read_prompts, run_evaluation, write_results_jsonl
+from src.evaluate import _format_inference_prompt, _read_prompts, run_evaluation, write_results_jsonl
 
 
 def test_read_prompts_validates_and_yields_rows(tmp_path):
@@ -43,6 +43,11 @@ def test_run_evaluation_manaca_instruct_pt_requires_adapter(tmp_path):
     # _load_model raises before any network/GPU work if --adapter is missing for this model
     with pytest.raises(ValueError, match="requires --adapter"):
         run_evaluation("manaca-instruct-pt", None, [], "run1")
+
+
+def test_format_inference_prompt_matches_training_template():
+    formatted = _format_inference_prompt("Corrija gramaticalmente o texto: ele viajo ontem")
+    assert formatted == "### Instrução:\nCorrija gramaticalmente o texto: ele viajo ontem\n\n### Resposta:\n"
 
 
 # NOTE: _load_model/_generate now do real transformers/peft loading and GPU
