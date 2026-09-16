@@ -27,6 +27,7 @@ training:
   # qlora-v1 improved on every category (0%->15-31%) but missed SC-002's 70% threshold everywhere,
   # including categories already at the full 1000-example cap — a pattern suggesting undertraining
   # (10 minutes, 2 epochs) rather than data starvation, so more epochs is the primary lever this round
+  completion_only_loss: false     # false reproduces qlora-v2 full-sequence loss; true trains on responses only
   max_seq_length: 2048             # base model supports up to 4096; 2048 matches the RTX-4060 profiling study's validated ceiling
   optimizer: paged_adamw_8bit
 
