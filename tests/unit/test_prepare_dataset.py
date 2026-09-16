@@ -121,6 +121,34 @@ def test_cap_counts_over_cap_rows():
     assert stats["over_cap"] == 2
 
 
+def test_cap_keeps_seed_rows_ahead_of_public_rows():
+    public = [
+        {"instruction": f"Classifique a frase {i} como positiva ou negativa.", "input": f"texto {i}", "output": "positiva"}
+        for i in range(20)
+    ]
+    seeds = [
+        _seed(i, category="classification", instruction="Classifique a mensagem", input_text=f"mensagem {i}", output="elogio")
+        for i in range(1, 4)
+    ]
+    examples = build_dataset([], public, eval_keys=EvalKeys(), seed_rows=seeds, target_total=25)  # canarim filter -> classification; cap = 5
+    assert len(examples) == 5
+    assert sorted(ex["id"] for ex in examples if ex["source"] == "seed-llm") == [f"seed-llm-{i:06d}" for i in range(1, 4)]
+
+
+def test_cap_emits_categories_in_sorted_order_regardless_of_input_order():
+    """Set iteration order varies with PYTHONHASHSEED; the cap must not let it leak into the file order."""
+    from src.prepare_dataset import _cap_per_category
+
+    rows = [
+        {"source": "canarim", "task_category": c, "instruction": f"i{c}{i}", "input": "", "output": "o"}
+        for c in ("summarization", "classification", "rewriting", "grammar_correction", "simplification")
+        for i in range(2)
+    ]
+    order = [r["task_category"] for r in _cap_per_category(rows, target_total=50)]
+    assert order == sorted(order)
+    assert order == [r["task_category"] for r in _cap_per_category(list(reversed(rows)), target_total=50)]
+
+
 def test_build_dataset_produces_no_duplicate_ids():
     examples = build_dataset(RAW_ALPACA, RAW_CANARIM, eval_keys=EvalKeys())
     ids = [ex["id"] for ex in examples]

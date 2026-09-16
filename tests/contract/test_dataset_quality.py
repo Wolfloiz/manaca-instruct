@@ -41,6 +41,18 @@ def produced():
     return train, validation, report
 
 
+def test_seed_rows_survive_the_cap(produced):
+    """FR-011: the reviewed seed rows are what teaches the four labels; the cap must not drop them."""
+    seed_file = Path("data/seed/classification_4class.jsonl")
+    if not seed_file.exists():
+        pytest.skip("no seed file")
+    seed_ids = {json.loads(l)["id"] for l in seed_file.read_text(encoding="utf-8").splitlines() if l.strip()}
+    train, validation, _ = produced
+    kept = {r["id"] for r in train + validation if r["source"] == "seed-llm"}
+    # only quality/dedupe/eval-overlap may remove a seed row, never the cap
+    assert len(kept) >= 0.95 * len(seed_ids), f"{len(kept)} of {len(seed_ids)} seed rows in train+validation"
+
+
 def test_grammar_rows_have_no_forecast_or_code_instructions(produced):
     train, validation, _ = produced
     grammar = [r for r in train + validation if r["task_category"] == "grammar_correction"]

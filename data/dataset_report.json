@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-09-16T19:29:34Z",
+  "seed": 42,
+  "sources": {
+    "alpaca-pt-br": {
+      "license": "CC BY-NC-4.0",
+      "rows_in": 51759,
+      "rows_kept": 1394
+    },
+    "canarim": {
+      "license": "CC BY-NC-4.0",
+      "rows_in": 316413,
+      "rows_kept": 2161
+    },
+    "seed-llm": {
+      "license": "author-reviewed synthetic (see data/seed/README.md)",
+      "rows_in": 197,
+      "rows_kept": 197
+    }
+  },
+  "by_category": {
+    "classification": {
+      "raw": 9232,
+      "after_filter": 9429,
+      "after_quality": 9426,
+      "after_eval_dedupe": 9426,
+      "after_dedupe": 7105,
+      "after_cap": 1000,
+      "train": 908,
+      "validation": 92
+    },
+    "grammar_correction": {
+      "raw": 394,
+      "after_filter": 394,
+      "after_quality": 394,
+      "after_eval_dedupe": 394,
+      "after_dedupe": 394,
+      "after_cap": 394,
+      "train": 355,
+      "validation": 39
+    },
+    "rewriting": {
+      "raw": 1689,
+      "after_filter": 1689,
+      "after_quality": 1689,
+      "after_eval_dedupe": 1689,
+      "after_dedupe": 1689,
+      "after_cap": 1000,
+      "train": 906,
+      "validation": 94
+    },
+    "simplification": {
+      "raw": 380,
+      "after_filter": 380,
+      "after_quality": 379,
+      "after_eval_dedupe": 379,
+      "after_dedupe": 358,
+      "after_cap": 358,
+      "train": 311,
+      "validation": 47
+    },
+    "summarization": {
+      "raw": 3386,
+      "after_filter": 3386,
+      "after_quality": 3375,
+      "after_eval_dedupe": 3375,
+      "after_dedupe": 2926,
+      "after_cap": 1000,
+      "train": 897,
+      "validation": 103
+    }
+  },
+  "dropped_by_reason": {
+    "no_output": 3,
+    "exclude_regex": 296,
+    "label_not_in_instruction": 8229,
+    "missing_input": 117,
+    "degenerate_output": 15,
+    "overlap_with_eval": 0,
+    "duplicate_triple": 2684,
+    "duplicate_pair": 107,
+    "over_cap": 8720
+  },
+  "fingerprints": {
+    "data/train.jsonl": "9b3d3ca3513677bd7f4cf56c32b298cabf4c12f698a0276b31c71143e1107f1d",
+    "data/validation.jsonl": "4d0e980162dcd7424c3a56972c1f49dd989f6302799b6caa781d0603563528f2"
+  },
+  "warnings": []
+}

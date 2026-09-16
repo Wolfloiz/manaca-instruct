@@ -148,14 +148,26 @@ def _dedupe_examples(examples: Iterable[dict], stats: Counter | None = None) -> 
 
 
 def _cap_per_category(examples: list[dict], target_total: int, stats: Counter | None = None) -> list[dict]:
-    """Roughly even split across the 5 categories, capped at target_total overall."""
+    """Roughly even split across the 5 categories, capped at target_total overall.
+
+    Seed rows are kept ahead of public rows within a category: the first v3 run
+    showed the cap discarding 170 of 197 author-reviewed seed rows (classification
+    has ~7,100 public rows for 1,000 slots), which would leave FR-011's four-label
+    examples almost absent from the training data. The sort is stable, so the
+    seeded shuffle still decides the order inside each group.
+    """
     per_category_cap = target_total // len(TASK_CATEGORIES)
-    by_category: dict[str, list[dict]] = {c: [] for c in TASK_CATEGORIES}
+    # sorted(): TASK_CATEGORIES is a set, and set iteration order changes with
+    # PYTHONHASHSEED between processes. The category order here feeds the seeded
+    # split shuffle, so an unsorted dict made two identical runs produce different
+    # train/validation files (SC-005 fingerprint check).
+    by_category: dict[str, list[dict]] = {c: [] for c in sorted(TASK_CATEGORIES)}
     for ex in examples:
         by_category[ex["task_category"]].append(ex)
 
     result = []
     for category, rows in by_category.items():
+        rows = sorted(rows, key=lambda ex: ex["source"] != SEED_SOURCE)
         result.extend(rows[:per_category_cap])
         if stats is not None:
             stats["over_cap"] += max(0, len(rows) - per_category_cap)

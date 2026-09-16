@@ -21,16 +21,26 @@ HF_DATASET_ID = "dominguesm/alpaca-data-pt-br"
 
 # Whole-word matching (feature 002, FR-006): the v2 pattern `revis(e|ão|ar)` matched the
 # substring of "previsão" and pulled 52 weather-forecast rows into grammar_correction.
+# `revis*` itself was dropped after the v3 audit (T038): 139 of 676 grammar rows matched
+# only through it, and the sample was film/book/product *reviews* ("revisão" translating
+# "review"), not language revision. Genuine revision tasks still match on gramátic/
+# ortograf/corrij/erro de ..., which every true correction in the audit sample carried.
 _GRAMMAR_KEYWORDS = re.compile(
     r"\bcorrij|gramátic|gramatical|ortográfic|ortografia|"
-    r"erro(s)? de (escrita|texto|concordância)|\brevis(e|ar|ão|ando)\b|\bconserte\b|"
+    r"erro(s)? de (escrita|texto|concordância)|\bconserte\b|"
     r"escrev(a|er) corretamente|sintax(e|is)",
     re.IGNORECASE,
 )
 # "Encontre os erros no código a seguir e corrija-os" is a code task, not language correction
-# (20 such rows in the v2 training set).
+# (20 such rows in the v2 training set). `previs*` covers the forecast/prediction rows that
+# still match on a genuine "Revise ..."/"... revisão" elsewhere in the instruction.
+# The generation/reordering verbs cover "Organize as palavras em uma frase gramaticalmente
+# correta" / "Crie uma frase ..." — grammar *exercises* that produce a sentence from scratch
+# rather than correct a given one (64 rows in the first v3 build).
 _GRAMMAR_EXCLUDE = re.compile(
-    r"\b(código|code|programa|função|script|sql|python|javascript|bug)\b",
+    r"\b(código|code|programa|programação|função|script|sql|python|javascript|bug|previs\w*|"
+    r"organiz\w*|reorganiz\w*|reorden\w*|agrup\w*|cri(e|ar)|ger(e|ar)|adicion\w*|"
+    r"compo(nha|r)|constru\w*|form(e|ar)|liste|mnemônico)\b",
     re.IGNORECASE,
 )
 _REWRITING_KEYWORDS = re.compile(
@@ -80,6 +90,13 @@ def filter_grammar_and_rewriting(raw_rows: Iterable[dict], stats: Counter | None
             if stats is not None:
                 stats["no_output"] += 1
             continue  # no usable target output — skip rather than train on an empty label
+        if category == "grammar_correction" and not row.get("input", "").strip():
+            # Same rule simplification already applies: a correction needs a text to correct.
+            # The 133 empty-input grammar rows in the first v3 build were meta questions
+            # ("Como funciona um corretor ortográfico?"), rule lists, or word-ordering tasks.
+            if stats is not None:
+                stats["missing_input"] += 1
+            continue
 
         example_id = f"{SOURCE_NAME}-{i:06d}"
         if example_id in seen_ids:

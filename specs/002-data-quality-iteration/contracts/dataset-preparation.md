@@ -11,7 +11,7 @@ python -m src.prepare_dataset --sources alpaca-pt-br canarim [ADDITIONAL...] --s
 Pipeline order (each stage is a pure function over lists of rows and is unit-tested on synthetic rows):
 
 1. **Source filters** (per source module) — category assignment with the amended keyword rules:
-   - grammar: whole-word matching, `_GRAMMAR_EXCLUDE` applied first (code-fix instructions never become grammar rows);
+   - grammar: whole-word matching, `_GRAMMAR_EXCLUDE` applied first (code-fix, forecast and sentence-building instructions never become grammar rows); `revis*` is not a grammar keyword (it selected film/book/product *reviews* — T038 audit); `input` must be non-empty;
    - simplification: `_SIMPLIFICATION_EXCLUDE` applied first (trivia, math); `input` must be non-empty;
    - classification: `len(output.split()) <= 4` and normalized `output` contained in normalized `instruction`;
    - rewriting / summarization: unchanged.
@@ -21,7 +21,7 @@ Pipeline order (each stage is a pure function over lists of rows and is unit-tes
 Filter modules report what they drop through an optional keyword: `filter_grammar_and_rewriting(rows, stats: collections.Counter | None = None)` and `filter_open_ended_tasks(rows, stats=None)` increment `stats["no_output"]`, `stats["exclude_regex"]`, `stats["missing_input"]`, `stats["label_not_in_instruction"]` when given; rows matching no category keyword are not counted (they are unselected, not dropped). `prepare_dataset` passes one Counter to both and folds it into `dropped_by_reason`.
 4. **Eval overlap** — existing `_dedupe_against_eval`, now also comparing against the split `(instruction, input)` of evaluation prompts.
 5. **Dedupe** — by normalized `(instruction, input, output)`, then by normalized `(instruction, input)`; first occurrence wins; runs before any shuffle.
-6. **Shuffle** (seeded) → **cap per category** (unchanged: 1,000) → **split** train/validation (unchanged: 10%).
+6. **Shuffle** (seeded) → **cap per category** (unchanged: 1,000; seed rows are kept ahead of public rows inside a category, so the cap never discards reviewed seed examples — the first v3 run lost 170/197 of them to it) → **split** train/validation (unchanged: 10%).
 7. **Dev set** (optional) — 10 rows per category sampled (seeded) from the *validation* split, written as `EvaluationPrompt` rows with `group: "dev"`.
 8. **Report** — `data/dataset_report.md` and `.json`.
 

@@ -47,15 +47,49 @@ def test_previsao_no_longer_matches_revisao_substring():
     assert _classify_one("Encontre a previsão do tempo para Nova York hoje") is None
 
 
+def test_forecast_instructions_are_excluded_even_when_revise_matches():
+    rows = [
+        {"instruction": "Revise o conjunto de dados e determine a previsão mais precisa.", "input": "x", "output": "y"},
+        {"instruction": "Previsões de classificação: preveja a nota de uma revisão.", "input": "x", "output": "y"},
+    ]
+    assert list(filter_grammar_and_rewriting(rows)) == []
+
+
 def test_code_fixing_instructions_are_excluded_from_grammar():
     assert _classify_one("Encontre os erros no código a seguir e corrija-os.") is None
     assert _classify_one("Corrija o bug na função abaixo") is None
 
 
 def test_genuine_revision_and_correction_still_match():
-    assert _classify_one("Revise a concordância do texto") == "grammar_correction"
     assert _classify_one("Corrija os erros de concordância na frase") == "grammar_correction"
     assert _classify_one("Revisão gramatical: ajuste o parágrafo") == "grammar_correction"
+    assert _classify_one("Edite o texto para gramática, ortografia e clareza.") == "grammar_correction"
+
+
+def test_review_instructions_no_longer_match_grammar():
+    """T038 audit: "revisão" in alpaca-pt-br is almost always "review" (film/book/product)."""
+    assert _classify_one("Gerar uma revisão do livro dado.") is None
+    assert _classify_one("Avalie a revisão do filme a seguir.") is None
+    assert _classify_one("Revise o poema para torná-lo mais lírico") is None
+
+
+def test_sentence_building_exercises_are_excluded_from_grammar():
+    assert _classify_one("Organize as palavras abaixo em uma frase gramaticalmente correta.") is None
+    assert _classify_one("Crie uma frase usando as seguintes palavras de forma gramaticalmente correta.") is None
+    assert _classify_one("Adicione a próxima frase à frase dada de forma gramaticalmente correta.") is None
+
+
+def test_grammar_rows_require_an_input_text():
+    from collections import Counter
+
+    stats = Counter()
+    rows = [
+        {"instruction": "Como funciona um corretor ortográfico?", "input": "", "output": "Ele compara..."},
+        {"instruction": "Corrija a frase gramaticalmente.", "input": "Ele vai à loja.", "output": "Ele vai à loja."},
+    ]
+    kept = list(filter_grammar_and_rewriting(rows, stats=stats))
+    assert [r["input"] for r in kept] == ["Ele vai à loja."]
+    assert stats["missing_input"] == 1
 
 
 def test_stats_count_exclusions_and_empty_outputs():
