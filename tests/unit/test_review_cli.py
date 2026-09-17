@@ -128,6 +128,18 @@ def test_blind_session_is_resumable_and_only_fills_nulls(tmp_path):
     assert sorted(r["score"] for r in second) == [0.5, 1.0]
 
 
+def test_blind_session_refuses_a_stale_blind_copy(tmp_path):
+    """The results file was regenerated under the same run id after grading started."""
+    a = tmp_path / "a.jsonl"
+    _write_jsonl(a, [_row("x", "a"), _row("y", "a")])
+    review_blind([a], input_fn=lambda _: "1", shuffle_seed=0)
+    regenerated = [_row("x", "a"), _row("y", "a")]
+    regenerated[1]["output"] = "a different answer"
+    _write_jsonl(a, regenerated)
+    with pytest.raises(ValueError, match="regenerated"):
+        review_blind([a], input_fn=lambda _: "1", shuffle_seed=0)
+
+
 def test_shuffle_seed_is_deterministic(tmp_path):
     rows = [_row(f"r{i}", "a") for i in range(6)]
     orders = []
