@@ -33,10 +33,25 @@ import time
 from pathlib import Path
 
 KNOWN_MACHINES = {"rtx-5050", "dell-g3"}
-BENCHMARK_PROMPT = "Corrija gramaticalmente o texto: os documento foi enviado ontem"
+# The training template, lowercased. Two llama.cpp facts found while benchmarking the adopted
+# adapter (002 T056): (1) convert_hf_to_gguf.py drops the tokenizer's NFKC+Lowercase normalizer,
+# so an uppercase "Resposta" tokenizes as ' ','R','esp','os','ta' instead of '▁resposta' and the
+# model -- trained on lowercased text -- answers EOS; (2) the `llama-cli` of recent builds is a
+# chat front-end that wraps the prompt in a (ChatML) chat template the model never saw. So the
+# benchmark prompt is lowercased and templated, and `llama-completion` (raw completion) is
+# preferred over `llama-cli`. qlora-v2's rows were measured through llama-cli with a raw
+# uppercase prompt; it rambled anyway, so its throughput numbers stand, but the adopted model
+# stops correctly and produced no tokens under that invocation (rows removed, see git history).
+BENCHMARK_PROMPT = (
+    "### instrução:\ncorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### resposta:\n"
+)
 DEFAULT_MAX_NEW_TOKENS = 128
 
-LLAMA_CLI_CANDIDATES = ("llama-cli", "llama.cpp/build/bin/llama-cli")
+# llama-completion first: raw completion, no chat template. llama-cli is kept as the fallback
+# for builds that predate the split (where it *was* the raw completion binary).
+LLAMA_CLI_CANDIDATES = (
+    "llama-completion", "llama.cpp/build/bin/llama-completion", "llama-cli", "llama.cpp/build/bin/llama-cli"
+)
 
 SUBPROCESS_TIMEOUT_S = 120  # llama-cli hanging (e.g. waiting on stdin it'll never get) should
 # become a measured stalled_or_crashed: true, not an indefinitely frozen benchmark run
@@ -50,6 +65,12 @@ def _find_llama_cli() -> str | None:
         if found:
             return str(found)
     return None
+
+
+def _single_turn_flag(binary: str) -> list[str]:
+    """--single-turn keeps llama-cli's chat front-end from waiting on stdin; llama-completion
+    is non-interactive and exits after -n tokens on its own."""
+    return [] if Path(binary).name.startswith("llama-completion") else ["--single-turn"]
 
 
 def _is_gguf(path: Path) -> bool:
@@ -155,7 +176,7 @@ def _load_gguf_model(model_path: Path):
     if not _is_gguf(model_path):
         raise ValueError(f"not a GGUF file (missing GGUF magic bytes): {model_path}")
     result, ram_mb, vram_mb = _run_and_measure(
-        [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", "--single-turn"]
+        [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", *_single_turn_flag(llama_cli)]
     )
     if result.returncode != 0:
         raise RuntimeError(f"llama-cli warm-up failed (exit {result.returncode}):\n{result.stderr}")
@@ -172,8 +193,9 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
             "-p", prompt,
             "-n", str(max_new_tokens),
             "--no-display-prompt",
-            "--single-turn",
+            *_single_turn_flag(model["llama_cli"]),
             "--temp", "0",
+            "--repeat-penalty", "1.1",  # the adopted generation setting (configs/inference.yaml)
             "-c", "4096",
         ]
     )

@@ -172,3 +172,13 @@ def test_run_and_measure_returns_none_vram_without_nvidia_smi(monkeypatch):
 
     assert ram_mb == 512
     assert vram_mb is None
+
+
+def test_single_turn_flag_only_for_llama_cli():
+    from src.benchmark import BENCHMARK_PROMPT, _single_turn_flag
+
+    assert _single_turn_flag("/x/llama-completion") == []
+    assert _single_turn_flag("/x/llama-cli") == ["--single-turn"]
+    # the GGUF tokenizer has no lowercase normalizer, and the prompt must carry the training template
+    assert BENCHMARK_PROMPT == BENCHMARK_PROMPT.lower()
+    assert BENCHMARK_PROMPT.startswith("### instrução:\n") and BENCHMARK_PROMPT.endswith("### resposta:\n")

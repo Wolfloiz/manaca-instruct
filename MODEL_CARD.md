@@ -59,6 +59,15 @@ perform the same within noise (`eval/results/presentation-experiment.md`). Keep
 `repetition_penalty` at 1.1: the model was evaluated with it, and higher values (1.3) made it
 paraphrase text it should copy.
 
+**The model reads and writes lowercase.** The base tokenizer lowercases all input (NFKC +
+Lowercase normalizer) and the training data is lowercased with it; outputs come back lowercase.
+`transformers` applies that normalizer for you. **The GGUF does not**: `convert_hf_to_gguf.py`
+drops the normalizer, so with llama.cpp you must lowercase the prompt yourself (template
+included) — an uppercase `### Resposta:` tokenizes into pieces the model never saw and it answers
+with an immediate end-of-text. Use `llama-completion` (raw completion), not `llama-cli`: recent
+`llama-cli` builds are a chat front-end that wraps the prompt in a chat template the model was
+not trained on, with the same empty result.
+
 ### transformers
 
 ```python
@@ -76,10 +85,12 @@ print(tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_to
 ### llama.cpp (GGUF)
 
 ```bash
-llama-cli \
+# lowercase prompt, raw completion (see the note above) — llama.cpp build b10985 or newer
+llama-completion \
   -m manaca-instruct-pt-Q4_K_M.gguf \
-  -p "### Instrução:\nCorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### Resposta:\n" \
-  -n 256 -c 4096 --temp 0 --repeat-penalty 1.1 --single-turn
+  -p "### instrução:\ncorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### resposta:\n" \
+  -n 256 -c 4096 --temp 0 --repeat-penalty 1.1 --no-display-prompt
+# -> o documento foi enviado ontem.
 ```
 
 ## Evaluation results
@@ -186,9 +197,13 @@ are grammar analysis/judgment exercises kept to stay above the 350-row category 
 - Trained on ~3.8k examples from two public datasets plus 197 synthetic ones; not a large-scale or
   professionally curated dataset. The classification seed examples come from one domain
   (customer service).
-- <FILL: T056 — measured tokens/second and memory of the Q4_K_M and Q5_K_M quantizations of the
-  adopted adapter on the RTX 5050 and the Dell G3 (GTX 1050); the ~70 tok/s figure is a target,
-  not a measurement — report the measured numbers, per spec.md's Edge Cases section>
+- Measured throughput of the published GGUF files (`benchmarks/rtx-5050.jsonl`, rows with
+  `source_run_id: qlora-v3b`, `src/benchmark.py` via `llama-completion`, greedy, 128-token budget on
+  the grammar prompt above, which the model answers in a few tokens): on an RTX 5050 laptop GPU
+  (8 GB), **Q4_K_M 219 tok/s, 1.0 GB VRAM** (1.06 GB file) and **Q5_K_M 201 tok/s, 1.5 GB VRAM**
+  (1.23 GB file), no stall or crash. The Dell G3 (GTX 1050, 4 GB) measurement required by the
+  feature-001 plan has not been made yet (no physical access) — the "~70 tok/s on a typical modern
+  GPU" figure of that plan is a target, not a measurement, and is not claimed here.
 
 ## License & attribution
 

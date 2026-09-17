@@ -236,3 +236,25 @@ Supera o oficial em todas as seis linhas. O alvo de 70% por categoria da feature
 | peso da gramática ×2 (v3b → v3c) | nada relevante (gramática 0.031 → 0.094, 2/1) — refutado |
 | geração 1.1 / n-gram 0 (v3b → v3b-rp11) | gramática 0.031 → 0.375 (8/0), resumo 0.156 → 0.375 (8/3), simplificação +0.125, reescrita +0.094, `full_rate` A 0.188 → 0.300; grupo_b 5/6 (neutro) |
 | não atribuível | a "regressão" de gramática do v3 sobre o v2 era artefato de graduação (v2 real: 0.094); o mecanismo do EOS-primeiro / paráfrase forçada sob penalidade 1.3 é a explicação mais simples para o efeito da geração, mas não foi isolado além do dev set |
+
+## Artefatos de deploy (T056, 2026-09-16)
+
+`adapters/qlora-v3b` → `python -m src.merge_adapter` → `models/merged/manaca-instruct-pt` → `python -m src.quantize`
+→ `models/gguf/manaca-instruct-pt-{f16,Q4_K_M,Q5_K_M}.gguf` (sobrescrevendo os artefatos do v2, nunca publicados).
+Benchmark RTX 5050 em `benchmarks/rtx-5050.jsonl` (linhas com `source_run_id: qlora-v3b`; as do v2 ficam, anotadas):
+Q4_K_M 219 tok/s, 1.036 MB VRAM; Q5_K_M 201 tok/s, 1.518 MB VRAM; `stalled_or_crashed: false`. Dell G3: pendente
+(sem acesso físico — T051 da 001 continua aberto).
+
+Dois problemas encontrados ao medir, ambos corrigidos em `src/benchmark.py` e declarados no model card:
+
+1. **A conversão para GGUF descarta o normalizador do tokenizer** (NFKC + Lowercase). No llama.cpp, "Resposta"
+   vira `' ','R','esp','os','ta'` em vez de `'▁resposta'`; o modelo adotado — que, ao contrário do v2, aprendeu a
+   parar — responde EOS de imediato a qualquer prompt com maiúsculas. Com o prompt em minúsculas responde
+   corretamente ("o documento foi enviado ontem."). Vale para o v2 e para o oficial também; o v2 só "funcionava"
+   no benchmark porque divagava. O prompt do benchmark passou a ser o template de treino em minúsculas.
+2. **`llama-cli` (build b10985) é um front-end de chat** e embrulha o prompt num chat template (ChatML) que o modelo
+   nunca viu → saída vazia mesmo em minúsculas. O benchmark e o snippet do model card usam `llama-completion`.
+
+As duas primeiras medições do v3b (0 tok/s, `stalled_or_crashed: true`, feitas com o prompt antigo via llama-cli)
+foram removidas do arquivo antes das medições válidas; estão no histórico do git (commit `09cadf4`.. do arquivo).
+Os números de tok/s do v3b não são comparáveis aos do v2 (prompt, binário e tamanho da resposta diferentes).
