@@ -113,7 +113,9 @@ blind run in a single interleaved session with a written rubric after an inconsi
 in qlora-v2's first session (its grammar mean fell from 0.438 to 0.094; the official release did
 not change). 35 of the 88 manual grades of the official release's blind file were given by an AI
 assistant (Claude Code) at the author's request, calibrated on the author's 53; every other blind
-grade is the author's. Details, ids and rubric: `eval/results/adoption-decision.md`.
+grade is the author's. Details, ids and rubric: `eval/results/adoption-decision.md`. Every file cited on this
+card — grades, manifests, dataset report, seed provenance, specs — is in the public project repository:
+<https://github.com/Wolfloiz/manaca-instruct>.
 
 | Category | protocol | manaca-1b-base | qlora-v1 | qlora-v2 | **manaca-instruct-pt** (qlora-v3b, rp 1.1) | manaca-1b-instruct (official) |
 |---|---|---:|---:|---:|---:|---:|
