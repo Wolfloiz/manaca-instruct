@@ -171,3 +171,68 @@ intercalada com os seis runs (v2, v3a, v3b, v3c, v3b-rp11, oficial — 96 notas)
 
 As notas anteriores ficam no histórico do git dos arquivos `-blind`; a tabela final passa a usar as novas para todos os
 runs. As demais categorias não são regraduadas.
+
+### Resultado da regraduação da gramática (2026-09-16)
+
+Sessão única, 96 notas do autor, seis runs intercalados (`category_session --category grammar_correction --shuffle-seed 17`,
+pasta `~/manaca-regrade/grammar_correction/`), régua acima. Médias da categoria antes → depois:
+
+| run | antes | depois | linhas alteradas |
+|---|---:|---:|---:|
+| qlora-v2 | 0.438 (6 corretas) | **0.094 (0)** | 8 |
+| qlora-v3a | 0.031 | 0.031 | — |
+| qlora-v3b | 0.062 | 0.031 | 1 |
+| qlora-v3c | 0.094 | 0.094 | — |
+| qlora-v3b-rp11 | (nova) | 0.375 (3) | — |
+| official-instruct | 0.125 | 0.125 | 0 |
+
+A queda do v2 confirma o diagnóstico: as seis notas 1.0 eram frases substituídas. Nenhum outro run mudou de forma
+relevante, e o oficial não mudou nada — a régua da primeira sessão do v2 era a exceção. Todos os documentos passam
+a usar estes números; a comparação "v2 supera o oficial em gramática" deixa de existir (0.094 vs 0.125).
+
+### Run 3 — qlora-v3b-rp11 (T054, 2026-09-16)
+
+`adapters/qlora-v3b` + `configs/inference-rp1.1.yaml`, uma avaliação no conjunto congelado (`qlora-v3b-rp11.jsonl`,
+manifesto `git_dirty: false`), 88 notas cegas do autor (72 na sessão `--exclude grammar_correction`, seed 11; 16 na
+sessão de gramática acima). Contra v3b (mesmo adapter, só a geração muda): gramática 8 melhoraram / 0 pioraram,
+reescrita 2/0, resumo 8/3, simplificação 5/3, classificação 0/0, grupo_b 5/6.
+
+## Tabela final (T051/T054) — `final-table.md`, `combined`, todas as linhas cegas, gramática regraduada
+
+| categoria | v2 | v3a | v3b | v3c | **v3b-rp11** | oficial |
+|---|---:|---:|---:|---:|---:|---:|
+| grammar_correction | 0.094 (0) | 0.031 (0) | 0.031 (0) | 0.094 (0) | **0.375 (3)** | 0.125 (0) |
+| classification | 0.250 (4) | 0.625 (10) | 0.750 (12) | 0.625 (10) | **0.750 (12)** | 0.250 (4) |
+| rewriting | 0.062 (0) | 0.094 (0) | 0.125 (2) | 0.125 (1) | **0.219 (3)** | 0.000 (0) |
+| summarization | 0.062 (0) | 0.094 (0) | 0.156 (0) | 0.125 (0) | **0.375 (3)** | 0.031 (0) |
+| simplification | 0.094 (0) | 0.188 (0) | 0.219 (1) | 0.156 (2) | **0.344 (3)** | 0.031 (0) |
+| grupo_b (24) | 0.333 (2) | 0.500 (8) | 0.438 (8) | 0.458 (8) | **0.438 (7)** | 0.333 (3) |
+| full_rate grupo A (80) | 0.050 | 0.125 | 0.188 | 0.163 | **0.300** | 0.050 |
+
+(mean; entre parênteses, respostas inteiramente corretas.)
+
+## Regra FR-020 — resultado final (2026-09-16)
+
+| candidato | cls ≥ 8/16 | full_rate A ≥ 0.20 | nenhuma categoria < v2 | grupo_b ≤ −10% | resultado |
+|---|---|---|---|---|---|
+| qlora-v3a | ✓ 10 | ✗ 0.125 | ✗ gramática 0.031 < 0.094 | ✓ +50% | declined |
+| qlora-v3b | ✓ 12 | ✗ 0.188 | ✗ gramática 0.031 < 0.094 | ✓ +31% | declined |
+| qlora-v3c | ✓ 10 | ✗ 0.163 | ✓ | ✓ +38% | declined |
+| **qlora-v3b-rp11** | ✓ 12 | ✓ 0.300 | ✓ (todas ≥ v2) | ✓ +31% | **adopted** |
+
+**`adopted: qlora-v3b` com a configuração de inferência `repetition_penalty: 1.1`, `no_repeat_ngram_size: 0`**
+(`configs/inference-rp1.1.yaml`). O que se publica é o que foi avaliado: `configs/inference.yaml` passa a ter esses
+valores para a quantização, o benchmark (T056) e o snippet do model card. Contra o v2: 9/1 em classificação, 8/2 em
+gramática, 8/1 em resumo, 8/2 em simplificação, 4/1 em reescrita, 8/5 no grupo_b (média 0.438 vs 0.333, sem queda).
+Supera o oficial em todas as seis linhas. O alvo de 70% por categoria da feature 001 continua não atingido
+(melhor categoria: classificação 75%; demais entre 22% e 44% de média) — limitação documentada, não bloqueio.
+
+### Atribuição final
+
+| fator | efeito medido |
+|---|---|
+| dados (v2 → v3a) | classificação 4 → 10 (fim do colapso num rótulo), grupo_b 0.333 → 0.500, simplificação 0.094 → 0.188; gramática 0.094 → 0.031 (−1 prompt, dentro do ruído após a regraduação) |
+| objetivo response-only (v3a → v3b) | classificação +2, reescrita 2 respostas inteiramente corretas, resumo +0.06; grupo_b −0.06 |
+| peso da gramática ×2 (v3b → v3c) | nada relevante (gramática 0.031 → 0.094, 2/1) — refutado |
+| geração 1.1 / n-gram 0 (v3b → v3b-rp11) | gramática 0.031 → 0.375 (8/0), resumo 0.156 → 0.375 (8/3), simplificação +0.125, reescrita +0.094, `full_rate` A 0.188 → 0.300; grupo_b 5/6 (neutro) |
+| não atribuível | a "regressão" de gramática do v3 sobre o v2 era artefato de graduação (v2 real: 0.094); o mecanismo do EOS-primeiro / paráfrase forçada sob penalidade 1.3 é a explicação mais simples para o efeito da geração, mas não foi isolado além do dev set |
