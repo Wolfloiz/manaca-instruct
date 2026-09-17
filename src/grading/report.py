@@ -27,7 +27,6 @@ CATEGORY_ORDER = ["grammar_correction", "classification", "rewriting", "summariz
 BLIND_SUFFIX = "-blind"
 BLIND_RUN_PREFIX = "qlora-v3"
 FOOTNOTE = "Means include partial credit (0.5); `full_rate` counts only answers graded 1."
-CLASSIFICATION_PROMPTS = 16
 
 
 def _load_run(path: Path) -> tuple[str, list[dict]]:
@@ -102,7 +101,7 @@ def render_markdown(runs: list[tuple[Path, str, list[dict]]], pairs: list[tuple[
             if category not in summary:
                 continue
             s = summary[category]
-            extra = f" ({s['n1']}/{CLASSIFICATION_PROMPTS} correct)" if category == "classification" else ""
+            extra = f" ({s['n1']}/{s['n']} correct)" if category == "classification" else ""
             lines.append(
                 f"| {run_id} | {protocol} | {category} | {s['n']} | {_fmt(s['mean'])} | {_fmt(s['full_rate'])}{extra} "
                 f"| {s['n1']} | {s['n05']} | {s['n0']} | {s['n_null']} |"

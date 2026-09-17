@@ -124,3 +124,50 @@ indicativo…", "ocorreu um erro de ortografia. a frase … deveria ser escrita 
 350; com o filtro mais estreito elas passaram a pesar mais dentro da categoria, e o oversample dobra o peso delas
 junto. Atribuição da regressão de gramática v2 → v3: dados, mecanismo agora apontado para a *composição* da
 categoria, não para o volume.
+
+### Run 2 — (a) `repetition_penalty` 1.1 no dev set (T054, 2026-09-16)
+
+`qlora-v3b` avaliado em `data/dev/dev_prompts.jsonl` com `configs/inference.yaml` (1.3 / n-gram 3) e
+`configs/inference-rp1.1.yaml` (1.1 / n-gram 0); 80 notas cegas do autor numa sessão intercalada (`--shuffle-seed 13`);
+relatório `dev-rp11-experiment.md`. Classificação do dev é rule-based (canarim, não o formato de 4 rótulos).
+
+| categoria (10 cada) | 1.3 mean / full | 1.1 mean / full | melhorou / piorou / empate |
+|---|---:|---:|---|
+| grammar_correction | 0.150 / 0.100 | 0.250 / 0.200 | 2 / 0 / 8 |
+| classification | 0.100 / 1 | 0.300 / 3 | 2 / 0 / 8 |
+| rewriting | 0.200 / 0.100 | 0.450 / 0.400 | 4 / 1 / 5 |
+| summarization | 0.200 / 0.100 | 0.350 / 0.200 | 2 / 0 / 8 |
+| simplification | 0.150 / 0.100 | 0.350 / 0.200 | 4 / 0 / 6 |
+| **total (50)** | full 5/50 = 0.10 | full 13/50 = **0.26** | 14 / 1 / 35 |
+
+Com 1.3 o v3b devolveu 2 respostas vazias (EOS como primeiro token) e 0 com 1.1. Melhora em todas as categorias, uma
+única piora em 50. **Justifica o terceiro run**: o único bloqueio que sobra aos candidatos é o `full_rate` do grupo A
+(v3b 0.188), e é exatamente o que a geração 1.1 move.
+
+### Run 3 — `qlora-v3b-rp11` (decidido em 2026-09-16, antes de rodar)
+
+- Base: `adapters/qlora-v3b` (sem retreino). Fator único: `--inference-config configs/inference-rp1.1.yaml`.
+- Avaliado **uma vez** no conjunto congelado, `combined`, cego; linha `qlora-v3b-rp11` na tabela final. A regra
+  FR-020 aplica-se a ele como a qualquer candidato; se aprovado, o modelo adotado é `qlora-v3b` **com a configuração
+  de inferência 1.1 publicada junto** (`configs/inference.yaml` passa a ser essa; a quantização e o benchmark T056
+  rodam com ela).
+- É o terceiro e último run condicional (FR-021).
+
+### Regraduação cega da gramática (decidida em 2026-09-16, antes de rodar)
+
+Ao comparar as respostas de gramática do v2 com as do v3c, 6 das 16 notas cegas do v2 em gramática estavam em
+desacordo com a régua aplicada em todas as outras sessões: respostas que substituem a frase ("o documento não chegou
+hoje" para "os relatório foi enviado ontem"; "nós fumamos no mercado" para "nós fumos ao mercado ontem") receberam 1.0.
+Pela régua das demais sessões a gramática do v2 ficaria em ≈ 0.125 (não 0.438), o que muda a barra "nenhuma categoria
+abaixo da v2" e a comparação com o oficial (0.125). Como a spec prevê ("the blind numbers become the reported numbers …
+the documents are updated to say why they changed"), a categoria é regraduada **inteira**, às cegas, numa única sessão
+intercalada com os seis runs (v2, v3a, v3b, v3c, v3b-rp11, oficial — 96 notas), com a régua fixada aqui antes:
+
+- **1** — frase corrigida, sentido preservado, nenhum erro novo (paráfrase mínima aceitável: sinônimo que não altera o
+  sentido central);
+- **0.5** — correção parcial (corrige um erro e deixa outro), ou frase correta com troca de uma palavra que desloca o
+  sentido (médico → hospital);
+- **0** — sentido alterado ou frase substituída, explicação/análise em vez de correção, novo erro gramatical, vazio.
+
+As notas anteriores ficam no histórico do git dos arquivos `-blind`; a tabela final passa a usar as novas para todos os
+runs. As demais categorias não são regraduadas.

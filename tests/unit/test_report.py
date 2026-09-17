@@ -59,7 +59,7 @@ def test_render_markdown_has_table_pairs_and_verbatim_footnote(tmp_path):
     a, b = tmp_path / "a-blind.jsonl", tmp_path / "b.jsonl"
     md = render_markdown([(a, "a", RUN_A), (b, "b", RUN_B)], [("a", "b")])
     assert "| a | blind | grammar_correction | 3 | 0.500 | 0.333 | 1 | 1 | 1 | 0 |" in md
-    assert "| b | earlier (non-blind) | classification | 2 | 0.000 | 0.000 (0/16 correct) | 0 | 0 | 2 | 0 |" in md
+    assert "| b | earlier (non-blind) | classification | 2 | 0.000 | 0.000 (0/2 correct) | 0 | 0 | 2 | 0 |" in md
     assert "### a → b" in md and "| grammar_correction | 1 | 0 | 2 | 0 |" in md
     assert FOOTNOTE in md
     assert str(a) in md and str(b) in md
