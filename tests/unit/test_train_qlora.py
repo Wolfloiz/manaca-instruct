@@ -8,6 +8,7 @@ import yaml
 from src.train_qlora import (
     _assert_no_overlap,
     _format_prompt,
+    _oversample,
     _run_training,
     _training_summary,
     load_config,
@@ -42,6 +43,28 @@ def test_load_config_accepts_valid_config(tmp_path):
     config = load_config(path)
     assert config["lora"]["r"] == 16
     assert config["training"]["completion_only_loss"] is False
+
+
+def test_load_config_defaults_oversample_and_validates_it(tmp_path):
+    config = load_config(_write_yaml(tmp_path, VALID_CONFIG))
+    assert config["training"]["oversample"] == {}
+    bad = json.loads(json.dumps(VALID_CONFIG))
+    bad["training"]["oversample"] = {"grammar": 2}  # not a task_category
+    with pytest.raises(ValueError, match="unknown task_category"):
+        load_config(_write_yaml(tmp_path, bad))
+    bad["training"]["oversample"] = {"grammar_correction": 1.5}
+    with pytest.raises(ValueError, match="integer >= 1"):
+        load_config(_write_yaml(tmp_path, bad))
+
+
+def test_oversample_repeats_only_the_named_category_in_order():
+    rows = [
+        {"id": "g1", "task_category": "grammar_correction"},
+        {"id": "c1", "task_category": "classification"},
+        {"id": "g2", "task_category": "grammar_correction"},
+    ]
+    assert [r["id"] for r in _oversample(rows, {"grammar_correction": 2})] == ["g1", "g1", "c1", "g2", "g2"]
+    assert _oversample(rows, {}) == rows
 
 
 def test_load_config_rejects_missing_section(tmp_path):
@@ -205,8 +228,12 @@ def test_run_training_uses_expected_dataset_shape_and_eval_config(tmp_path, monk
 
     config = json.loads(json.dumps(VALID_CONFIG))
     config["training"]["completion_only_loss"] = completion_only_loss
-    rows = [{"instruction": "Instrua", "input": "contexto", "output": "resposta"}]
+    config["training"]["oversample"] = {"grammar_correction": 3}
+    rows = [{"instruction": "Instrua", "input": "contexto", "output": "resposta", "task_category": "grammar_correction"}]
     summary = _run_training(Saveable(), Saveable(), rows, rows, config, tmp_path / "adapter")
+
+    assert len(captured["trainer"]["train_dataset"]) == 3  # oversampled
+    assert len(captured["trainer"]["eval_dataset"]) == 1  # validation never repeated
 
     assert captured["config"]["eval_strategy"] == "epoch"
     assert captured["config"]["per_device_eval_batch_size"] == 2

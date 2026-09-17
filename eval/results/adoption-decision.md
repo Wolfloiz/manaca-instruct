@@ -91,8 +91,17 @@ v2 → v3a muda apenas os dados; v3a → v3b muda apenas o objetivo (FR-018). Co
 | Simplificação 0.094 → 0.188 / 0.219; resumo 0.062 → 0.094 / 0.156; reescrita 0.062 → 0.094 / 0.125 | **dados**, com contribuição fraca do **objetivo** em resumo (4/2) e reescrita (2/2, mas 2 respostas inteiramente corretas só no v3b) | diferenças pequenas, ≤ 5 prompts |
 | Todas as categorias exceto gramática: v3b ≥ oficial | dados | — |
 
-### Próximo passo (T053)
+## Runs condicionais (FR-021, T053) — decididos em 2026-09-16, antes de rodar
 
 Os bloqueios são dois: a regressão de gramática (fator: dados) e o `full_rate` do grupo A abaixo de 0.20 (v3b em
-0.188 — faltam 2 respostas inteiramente corretas em 80). Runs condicionais devem mirar um dos dois com um único fator
-cada; a decisão e a justificativa de cada run ficam registradas aqui antes de rodar.
+0.188 — faltam 2 respostas inteiramente corretas em 80). Cada run muda exatamente um fator em relação ao v3b, que é
+o candidato mais forte (passa classificação e grupo_b com folga, e é o mais próximo do `full_rate`).
+
+| run | base | fator único (`differs_from`) | justificativa nos resultados | mede em |
+|---|---|---|---|---|
+| **qlora-v3c** | qlora-v3b | `training.oversample: {grammar_correction: 2}` — as 355 linhas de gramática do treino são repetidas 2× em tempo de treino; dados, filtros, validação, objetivo e demais hiperparâmetros idênticos (mesmos fingerprints) | gramática caiu 0.438 → 0.062 quando o volume da categoria caiu 681 → 355 linhas (17% → 10,5% da mistura), sem perda de qualidade pelas proxies e sem vazamento no v2 — a hipótese testável é o peso da categoria | conjunto congelado, `combined`, cego (88 notas); linha `qlora-v3c` na tabela final |
+| **(a) v3b-dev-rp11** | qlora-v3b (sem retreino) | geração: `configs/inference-rp1.1.yaml` (`repetition_penalty` 1.3 → 1.1, `no_repeat_ngram_size` 3 → 0) | `full_rate` do grupo A a 2 respostas do limiar; a penalidade 1.3 penaliza tokens já presentes no prompt — rótulos de classificação e frases a corrigir são copiados do prompt; no smoke T045 o adapter response-only emitia EOS como primeiro token sob 1.3 | **só** `data/dev/dev_prompts.jsonl` (50 prompts; 40 notas manuais + 10 rule-based por configuração), cego e intercalado com a configuração atual; se melhorar no dev, o candidato sob consideração é reavaliado uma vez no conjunto congelado com essa configuração |
+| terceiro run | — | reservado; decidido pelos dois resultados acima | — | — |
+
+Ordem: v3c (treino ~15 min) e (a) (2 avaliações de ~1 min) podem ser feitos em sequência na mesma sessão; a graduação
+de (a) no dev set não gasta o conjunto congelado. Resultados: a preencher no T054.

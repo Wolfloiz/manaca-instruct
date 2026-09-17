@@ -28,6 +28,8 @@ training:
   # including categories already at the full 1000-example cap — a pattern suggesting undertraining
   # (10 minutes, 2 epochs) rather than data starvation, so more epochs is the primary lever this round
   completion_only_loss: true     # false reproduces qlora-v2 full-sequence loss; true trains on responses only
+  oversample: {}                 # {task_category: k} repeats that category's training rows k times (002 FR-021
+  # single-factor runs, e.g. {grammar_correction: 2} for qlora-v3c); {} reproduces qlora-v3a/v3b; validation untouched
   max_seq_length: 2048             # base model supports up to 4096; 2048 matches the RTX-4060 profiling study's validated ceiling
   optimizer: paged_adamw_8bit
 

@@ -29,7 +29,7 @@ import yaml
 
 from src.prompt_format import format_prompt
 from src.run_manifest import build_manifest, write_manifest
-from src.schema_validation import validate_instruction_example
+from src.schema_validation import TASK_CATEGORIES, validate_instruction_example
 from src.text_normalize import normalize
 
 REQUIRED_CONFIG_SECTIONS = {"base_model", "quantization", "lora", "training", "output"}
@@ -53,6 +53,16 @@ def load_config(config_path: Path) -> dict[str, Any]:
     # Feature 001 configs did not contain this switch.  Keep their objective
     # byte-for-byte compatible unless a v3 run opts in explicitly.
     training.setdefault("completion_only_loss", False)
+    # Conditional single-factor runs (002 FR-021): repeat a category's training rows k
+    # times without touching the data files, so the run's dataset fingerprints stay equal
+    # to the candidates' and the factor is visible in the manifest's config alone.
+    # {} (the default) reproduces v3a/v3b exactly. Validation rows are never repeated.
+    training.setdefault("oversample", {})
+    for category, factor in training["oversample"].items():
+        if category not in TASK_CATEGORIES:
+            raise ValueError(f"training.oversample: unknown task_category {category!r}")
+        if not (isinstance(factor, int) and factor >= 1):
+            raise ValueError(f"training.oversample[{category!r}]={factor!r} must be an integer >= 1")
     if not (1 <= training["batch_size"] <= 2):
         raise ValueError(f"training.batch_size={training['batch_size']} outside research.md §2's validated range (1-2)")
     if not (1e-4 <= training["learning_rate"] <= 2e-4):
@@ -81,6 +91,12 @@ def load_training_examples(dataset_path: Path) -> list[dict]:
 def _format_prompt(example: dict) -> str:
     """The shared training/evaluation template, including the target response."""
     return format_prompt(example["instruction"], example["input"], example["output"])
+
+
+def _oversample(examples: list[dict], factors: dict[str, int]) -> list[dict]:
+    """Repeat each row of an oversampled category `factor` times, keeping the file order
+    (TRL shuffles per epoch, so the copies do not end up adjacent in a batch)."""
+    return [ex for ex in examples for _ in range(factors.get(ex["task_category"], 1))]
 
 
 def _assert_no_overlap(train_examples: list[dict], validation_examples: list[dict]) -> None:
@@ -179,6 +195,7 @@ def _run_training(
         sft_config_kwargs["dataset_text_field"] = "text"
     training_args = SFTConfig(**sft_config_kwargs)
 
+    examples = _oversample(examples, train["oversample"])  # validation_examples untouched
     if train["completion_only_loss"]:
         dataset = Dataset.from_list(
             [{"prompt": format_prompt(ex["instruction"], ex["input"]), "completion": ex["output"]} for ex in examples]
