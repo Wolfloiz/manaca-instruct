@@ -6,7 +6,7 @@ tags: [instruction-tuning, portuguese, gguf, qlora, personal-project]
 ---
 
 <!--
-Published as loizlabs/manaca-instruct-pt (feature 001 T058). The Dell G3 benchmark was deferred
+Published as loizlabz/manaca-instruct-pt (feature 001 T058). The Dell G3 benchmark was deferred
 indefinitely and is stated as such in Known limitations. Validated by
 src/publish.py's validate_model_card() (contracts/model-usage-contract.md's pre-publish gate)
 before any Hugging Face push is attempted. Do not remove the "## Evaluation results" heading or
@@ -73,8 +73,8 @@ not trained on, with the same empty result.
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("loizlabs/manaca-instruct-pt")
-model = AutoModelForCausalLM.from_pretrained("loizlabs/manaca-instruct-pt")
+tokenizer = AutoTokenizer.from_pretrained("loizlabz/manaca-instruct-pt")
+model = AutoModelForCausalLM.from_pretrained("loizlabz/manaca-instruct-pt")
 
 prompt = "### Instrução:\nCorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### Resposta:\n"
 inputs = tokenizer(prompt, return_tensors="pt")
