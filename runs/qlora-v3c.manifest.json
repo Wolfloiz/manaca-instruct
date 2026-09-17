@@ -1,0 +1,98 @@
+{
+  "kind": "training",
+  "run_id": "qlora-v3c",
+  "status": "ok",
+  "error": null,
+  "created_at": "2026-09-17T00:39:55Z",
+  "git_commit": "9ab37470f12eeec3bdf6c0b233d08954c865418b",
+  "git_dirty": false,
+  "library_versions": {
+    "torch": "2.14.0",
+    "transformers": "5.17.0",
+    "peft": "0.20.0",
+    "trl": "1.13.0",
+    "bitsandbytes": "0.50.2",
+    "datasets": "5.0.1"
+  },
+  "base_model": {
+    "repo_id": "menezesbruno/manaca-1b-base",
+    "revision": "a9f5da7cb220ec4b0205a45da2455946c44e812f",
+    "revision_source": "hub"
+  },
+  "datasets": [
+    {
+      "path": "data/train.jsonl",
+      "sha256": "9b3d3ca3513677bd7f4cf56c32b298cabf4c12f698a0276b31c71143e1107f1d",
+      "rows": 3377
+    },
+    {
+      "path": "data/validation.jsonl",
+      "sha256": "4d0e980162dcd7424c3a56972c1f49dd989f6302799b6caa781d0603563528f2",
+      "rows": 375
+    }
+  ],
+  "config": {
+    "base_model": "menezesbruno/manaca-1b-base",
+    "quantization": {
+      "load_in_4bit": true,
+      "bnb_4bit_quant_type": "nf4",
+      "bnb_4bit_compute_dtype": "bfloat16"
+    },
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj"
+      ]
+    },
+    "training": {
+      "batch_size": 2,
+      "gradient_accumulation_steps": 16,
+      "learning_rate": 0.00015,
+      "num_epochs": 3,
+      "completion_only_loss": true,
+      "oversample": {
+        "grammar_correction": 2
+      },
+      "max_seq_length": 2048,
+      "optimizer": "paged_adamw_8bit"
+    },
+    "output": {
+      "adapter_dir": "adapters/"
+    }
+  },
+  "prompt_format": "train-template",
+  "validation_path": "data/validation.jsonl",
+  "completion_only_loss": true,
+  "adapter_path": "adapters/qlora-v3c",
+  "eval_loss_by_epoch": {
+    "1": 1.617772102355957,
+    "2": 1.5648473501205444,
+    "3": 1.552965521812439
+  },
+  "train_loss_by_epoch": {
+    "1": 1.9381649017333984,
+    "2": 1.8910499572753907,
+    "3": 1.9244495391845704
+  },
+  "best_epoch": 3,
+  "checkpoints": [
+    {
+      "epoch": 1,
+      "path": "adapters/qlora-v3c/checkpoint-117"
+    },
+    {
+      "epoch": 2,
+      "path": "adapters/qlora-v3c/checkpoint-234"
+    },
+    {
+      "epoch": 3,
+      "path": "adapters/qlora-v3c/checkpoint-351"
+    }
+  ],
+  "adapter_epoch": 3
+}

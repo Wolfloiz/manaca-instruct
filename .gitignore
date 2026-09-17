@@ -20,6 +20,9 @@ models/gguf/
 data/raw/
 data/processed/
 
+# llama.cpp — build tooling used locally for GGUF conversion/quantization/benchmarking (research.md §4), not project source
+llama.cpp/
+
 # Logs
 *.log
 
