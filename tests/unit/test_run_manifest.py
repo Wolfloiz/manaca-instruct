@@ -104,3 +104,22 @@ def test_base_model_revision_unavailable_without_hub_or_cache(tmp_path, monkeypa
     )
     monkeypatch.setitem(__import__("sys").modules, "huggingface_hub", fake_hub)
     assert run_manifest._base_model_revision("org/none") == (None, "unavailable")
+
+
+def test_git_dirty_ignores_untracked_run_outputs_but_not_other_changes(monkeypatch):
+    import subprocess
+
+    def fake_run(cmd, **kwargs):
+        class R:
+            stdout = "abc\n" if cmd[1] == "rev-parse" else fake_run.status
+        return R()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    fake_run.status = "?? eval/results/qlora-v3a.jsonl\n?? runs/qlora-v3a.manifest.json\n"
+    assert run_manifest._git_info() == ("abc", False)
+    fake_run.status = "?? eval/results/qlora-v3a.jsonl\n M src/evaluate.py\n"
+    assert run_manifest._git_info() == ("abc", True)
+    fake_run.status = "?? src/new_filter.py\n"
+    assert run_manifest._git_info() == ("abc", True)
+    fake_run.status = ""
+    assert run_manifest._git_info() == ("abc", False)

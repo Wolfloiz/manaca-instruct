@@ -39,6 +39,9 @@ resultado `.jsonl` estava corrompido (sobrescrito por um script) e não entram e
   010, 011, 015. Notas 1 dadas pela IA: grupo_b-002, 004, 010. O `research.md` §6 rejeita LLM-as-judge; esta
   exceção fica registrada aqui e deve constar no model card.
 - Candidatos v3 (`qlora-v3a-blind`, `qlora-v3b-blind`): a preencher no T050.
+- `qlora-v2-split.manifest.json` está com `git_dirty: true` por um defeito do `run_manifest` na época (o próprio
+  `qlora-v2-split.jsonl`, ainda não rastreado, contava como sujeira); o commit citado é o correto. Corrigido antes
+  das avaliações dos candidatos, que são regeradas com `git_dirty: false`.
 
 ## Candidatos (T046–T047)
 

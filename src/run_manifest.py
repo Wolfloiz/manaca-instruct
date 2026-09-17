@@ -29,14 +29,24 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
+# A run's own outputs must not make the run "dirty": evaluate.py writes the results
+# file before its manifest, so the untracked <run_id>.jsonl flagged every evaluation
+# manifest as git_dirty (qlora-v2-split and the first v3a/v3b manifests). Untracked
+# files anywhere else (a new src/ module, say) still count.
+OUTPUT_DIRS = ("eval/results/", "runs/")
+
+
+def _is_run_output(status_line: str) -> bool:
+    return status_line.startswith("?? ") and status_line[3:].lstrip('"').startswith(OUTPUT_DIRS)
+
+
 def _git_info() -> tuple[str | None, bool | None]:
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         ).stdout.strip()
-        dirty = bool(
-            subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True).stdout.strip()
-        )
+        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True).stdout
+        dirty = any(line.strip() and not _is_run_output(line) for line in status.splitlines())
         return commit, dirty
     except (subprocess.SubprocessError, FileNotFoundError):
         return None, None
