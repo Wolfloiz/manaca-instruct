@@ -104,4 +104,23 @@ o candidato mais forte (passa classificação e grupo_b com folga, e é o mais p
 | terceiro run | — | reservado; decidido pelos dois resultados acima | — | — |
 
 Ordem: v3c (treino ~15 min) e (a) (2 avaliações de ~1 min) podem ser feitos em sequência na mesma sessão; a graduação
-de (a) no dev set não gasta o conjunto congelado. Resultados: a preencher no T054.
+de (a) no dev set não gasta o conjunto congelado.
+
+### Run 1 — qlora-v3c (T054, 2026-09-16)
+
+Manifesto `runs/qlora-v3c.manifest.json` (`git_dirty: false`, `oversample: {grammar_correction: 2}`, fingerprints iguais
+aos de v3a/v3b); eval_loss 1.618 → 1.565 → 1.553 (v3b: 1.628 → 1.573 → 1.559); `best_epoch == adapter_epoch == 3`.
+Avaliação `combined`, 88 notas cegas do autor (`qlora-v3c-blind.jsonl`).
+
+| | cls ≥ 8/16 | full_rate A ≥ 0.20 | nenhuma categoria < v2 | grupo_b ≤ −10% | resultado |
+|---|---|---|---|---|---|
+| qlora-v3c | ✓ 10/16 | ✗ 13/80 = 0.163 | ✗ grammar 0.094 < 0.438 | ✓ 0.458 (+38%) | **declined** |
+
+Gramática 0.062 → 0.094 (v3b → v3c: 2 melhoraram / 1 piorou; 0/16 inteiramente corretas nos dois). **Hipótese do
+volume refutada**: dobrar as linhas de gramática não recupera a categoria. O modo de falha, lendo as respostas, é o
+modelo *explicar* ou *julgar* o erro em vez de devolver a frase corrigida ("o verbo 'terminar' é usado no presente do
+indicativo…", "ocorreu um erro de ortografia. a frase … deveria ser escrita como…") — o comportamento das famílias
+"análise gramatical" (19 linhas) e "julgamento sim/não" (20) que a auditoria T038 identificou e manteve pelo piso de
+350; com o filtro mais estreito elas passaram a pesar mais dentro da categoria, e o oversample dobra o peso delas
+junto. Atribuição da regressão de gramática v2 → v3: dados, mecanismo agora apontado para a *composição* da
+categoria, não para o volume.
