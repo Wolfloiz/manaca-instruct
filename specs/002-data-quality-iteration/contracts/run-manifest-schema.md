@@ -2,6 +2,10 @@
 
 Governs `src/run_manifest.py` (new) and the files `adapters/<run_id>/run_manifest.json` (written by `src/train_qlora.py` next to the adapter, gitignored with it) with its **tracked copy** `runs/<run_id>.manifest.json` (same bytes; `runs/` is a new version-controlled directory so training provenance is reviewable in PRs even though adapters are not committed), and `eval/results/<run_id>.manifest.json` (written by `src/evaluate.py`). Also governs the training-side changes in `src/train_qlora.py` that the manifest records (held-out evaluation, response-only objective).
 
+## API (as merged in PR #26)
+
+`src.run_manifest.build_manifest(kind, run_id, *, base_model, datasets, config, prompt_format, status="ok", error=None, **extra) -> dict` assembles the common fields below plus any `extra` (training-only / evaluation-only fields); `src.run_manifest.write_manifest(path, manifest, copies=[...]) -> dict` writes it and byte-identical copies (training runs pass `copies=[Path("runs") / f"{run_id}.manifest.json"]`). `sha256_of(path)` is exported for the preparation report.
+
 ## Common fields
 
 ```json
@@ -25,7 +29,7 @@ Rules:
 - Written **always**, including on failure (`status: failed`, `error` set) — a failed run is still attributable.
 - `datasets[].sha256` MUST be computed from the file bytes at run start; for training runs the values MUST match `data/dataset_report.json`'s `fingerprints` (SC-005).
 - `base_model.revision` comes from `huggingface_hub.model_info(repo_id).sha`; if the Hub is unreachable, the locally cached snapshot hash is used and `revision_source: "local-cache"` is added.
-- `git_dirty: true` is allowed but is printed as a warning at run start; the adoption decision MUST cite manifests with `git_dirty: false` only.
+- `git_dirty: true` is allowed but is printed as a warning at run start; the adoption decision MUST cite manifests with `git_dirty: false` only. Untracked files under `eval/results/` and `runs/` do not count as dirty — they are the run's own outputs (the results file is written before its manifest), and counting them made every evaluation manifest dirty by construction.
 
 ## Training-only fields
 

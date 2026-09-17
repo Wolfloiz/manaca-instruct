@@ -33,10 +33,25 @@ import time
 from pathlib import Path
 
 KNOWN_MACHINES = {"rtx-5050", "dell-g3"}
-BENCHMARK_PROMPT = "Corrija gramaticalmente o texto: os documento foi enviado ontem"
+# The training template, lowercased. Two llama.cpp facts found while benchmarking the adopted
+# adapter (002 T056): (1) convert_hf_to_gguf.py drops the tokenizer's NFKC+Lowercase normalizer,
+# so an uppercase "Resposta" tokenizes as ' ','R','esp','os','ta' instead of '▁resposta' and the
+# model -- trained on lowercased text -- answers EOS; (2) the `llama-cli` of recent builds is a
+# chat front-end that wraps the prompt in a (ChatML) chat template the model never saw. So the
+# benchmark prompt is lowercased and templated, and `llama-completion` (raw completion) is
+# preferred over `llama-cli`. qlora-v2's rows were measured through llama-cli with a raw
+# uppercase prompt; it rambled anyway, so its throughput numbers stand, but the adopted model
+# stops correctly and produced no tokens under that invocation (rows removed, see git history).
+BENCHMARK_PROMPT = (
+    "### instrução:\ncorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### resposta:\n"
+)
 DEFAULT_MAX_NEW_TOKENS = 128
 
-LLAMA_CLI_CANDIDATES = ("llama-cli", "llama.cpp/build/bin/llama-cli")
+# llama-completion first: raw completion, no chat template. llama-cli is kept as the fallback
+# for builds that predate the split (where it *was* the raw completion binary).
+LLAMA_CLI_CANDIDATES = (
+    "llama-completion", "llama.cpp/build/bin/llama-completion", "llama-cli", "llama.cpp/build/bin/llama-cli"
+)
 
 SUBPROCESS_TIMEOUT_S = 120  # llama-cli hanging (e.g. waiting on stdin it'll never get) should
 # become a measured stalled_or_crashed: true, not an indefinitely frozen benchmark run
@@ -50,6 +65,12 @@ def _find_llama_cli() -> str | None:
         if found:
             return str(found)
     return None
+
+
+def _single_turn_flag(binary: str) -> list[str]:
+    """--single-turn keeps llama-cli's chat front-end from waiting on stdin; llama-completion
+    is non-interactive and exits after -n tokens on its own."""
+    return [] if Path(binary).name.startswith("llama-completion") else ["--single-turn"]
 
 
 def _is_gguf(path: Path) -> bool:
@@ -155,7 +176,7 @@ def _load_gguf_model(model_path: Path):
     if not _is_gguf(model_path):
         raise ValueError(f"not a GGUF file (missing GGUF magic bytes): {model_path}")
     result, ram_mb, vram_mb = _run_and_measure(
-        [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", "--single-turn"]
+        [llama_cli, "-m", str(model_path), "-p", "oi", "-n", "1", *_single_turn_flag(llama_cli)]
     )
     if result.returncode != 0:
         raise RuntimeError(f"llama-cli warm-up failed (exit {result.returncode}):\n{result.stderr}")
@@ -172,8 +193,9 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
             "-p", prompt,
             "-n", str(max_new_tokens),
             "--no-display-prompt",
-            "--single-turn",
+            *_single_turn_flag(model["llama_cli"]),
             "--temp", "0",
+            "--repeat-penalty", "1.1",  # the adopted generation setting (configs/inference.yaml)
             "-c", "4096",
         ]
     )
@@ -198,7 +220,9 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
     }
 
 
-def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> dict:
+def run_benchmark(
+    model_path: Path, machine: str, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, source_run_id: str | None = None
+) -> dict:
     """Note: pre-flight problems (bad --machine, missing/non-GGUF file, no llama-cli on
     PATH) raise — those are setup errors, not a benchmark result. A failure *during* the
     actual warm-up/generation (llama-cli exits non-zero, e.g. OOM) is caught here and
@@ -212,6 +236,10 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
         raise FileNotFoundError(f"GGUF model file does not exist: {model_path}")
 
     quant_level = model_path.stem.rsplit("-", 1)[-1]
+    # The GGUF file name is the same for every adapter that gets merged (manaca-instruct-pt-*),
+    # so a benchmarks/*.jsonl that spans runs (v2 rows kept, v3b rows appended -- 002 T056)
+    # needs the run recorded on the row itself; `source_run_id` mirrors QuantizedArtifact's.
+    provenance = {"source_run_id": source_run_id} if source_run_id else {}
     start = time.monotonic()
     try:
         model = _load_gguf_model(model_path)
@@ -224,6 +252,7 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
             "vram_mb": None,
             "ram_mb": None,
             "stalled_or_crashed": True,
+            **provenance,
         }
     load_time_s = time.monotonic() - start
 
@@ -237,6 +266,7 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
         "vram_mb": result.get("vram_mb"),
         "ram_mb": result["ram_mb"],
         "stalled_or_crashed": result["stalled_or_crashed"],
+        **provenance,
     }
 
 
@@ -251,9 +281,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--machine", required=True, choices=sorted(KNOWN_MACHINES))
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--source-run-id", default=None,
+        help="training run the GGUF was merged from (e.g. qlora-v3b); recorded as source_run_id on the row",
+    )
     args = parser.parse_args(argv)
 
-    record = run_benchmark(args.model, args.machine)
+    record = run_benchmark(args.model, args.machine, source_run_id=args.source_run_id)
     append_record(record, args.out)
     print(f"Recorded benchmark for {args.machine}: {record['tokens_per_second']:.1f} tok/s")
     return 0

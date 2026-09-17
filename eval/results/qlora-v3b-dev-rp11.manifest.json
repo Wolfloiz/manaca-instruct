@@ -1,0 +1,48 @@
+{
+  "kind": "evaluation",
+  "run_id": "qlora-v3b-dev-rp11",
+  "status": "ok",
+  "error": null,
+  "created_at": "2026-09-17T01:04:35Z",
+  "git_commit": "321542b03bb0380f4c80fcab8e8252321b752830",
+  "git_dirty": false,
+  "library_versions": {
+    "torch": "2.14.0",
+    "transformers": "5.17.0",
+    "peft": "0.20.0",
+    "trl": "1.13.0",
+    "bitsandbytes": "0.50.2",
+    "datasets": "5.0.1"
+  },
+  "base_model": {
+    "repo_id": "menezesbruno/manaca-1b-base",
+    "revision": "a9f5da7cb220ec4b0205a45da2455946c44e812f",
+    "revision_source": "hub"
+  },
+  "datasets": [
+    {
+      "path": "data/dev/dev_prompts.jsonl",
+      "sha256": "432934e6d834d4a52091157c99f618816e12c54fdab7fe7bd4e1cda0987e0344",
+      "rows": 50
+    }
+  ],
+  "config": {
+    "max_new_tokens": 256,
+    "do_sample": false,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "repetition_penalty": 1.1,
+    "no_repeat_ngram_size": 0
+  },
+  "prompt_format": "combined",
+  "model": "manaca-instruct-pt",
+  "adapter_path": "adapters/qlora-v3b",
+  "checkpoint": null,
+  "adapter_manifest": "adapters/qlora-v3b/run_manifest.json",
+  "inference_config_path": "configs/inference-rp1.1.yaml",
+  "prompt_files": [
+    "data/dev/dev_prompts.jsonl"
+  ],
+  "results_path": "eval/results/qlora-v3b-dev-rp11.jsonl",
+  "rows_written": 50
+}

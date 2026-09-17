@@ -27,7 +27,7 @@ python -m src.evaluate \
 
 ```bash
 python -m src.prepare_dataset --sources alpaca-pt-br canarim --out-dir data/
-python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --run-id qlora-v1
+python -m src.train_qlora --config configs/train.yaml --dataset data/train.jsonl --validation data/validation.jsonl --run-id qlora-v1
 python -m src.evaluate --model manaca-instruct-pt --adapter adapters/qlora-v1 \
   --prompts data/eval/grupo_a_prompts.jsonl data/eval/grupo_b_prompts.jsonl \
   --run-id qlora-v1 --out eval/results/qlora-v1.jsonl

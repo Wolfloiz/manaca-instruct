@@ -38,7 +38,7 @@ python -m src.grading.report RESULTS... [--pair RUN_A RUN_B]... [--markdown-out 
 | Argument | Rule |
 |---|---|
 | `RESULTS...` | any number of `EvaluationResult` files (original or `-blind`). |
-| `--pair A B` | adds a pairwise section for runs `A` and `B` (by `run_id` as found in the files, disambiguated by file name when both an original and a `-blind` copy are given). May repeat. |
+| `--pair A B` | adds a pairwise section for runs `A` and `B` (by `run_id` as found in the files). May repeat. **As merged (PR #28)**: one invocation accepts at most one file per `run_id` — passing an original and its `-blind` copy together is refused, because a `-blind` file carries the original `run_id` and the tool never mixes two files under one id. Compare protocols by running the report once per protocol. |
 | `--markdown-out` | also writes the Markdown to a file; stdout always gets it. |
 
 ### Output format (Markdown)
