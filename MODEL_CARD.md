@@ -6,8 +6,8 @@ tags: [instruction-tuning, portuguese, gguf, qlora, personal-project]
 ---
 
 <!--
-Fill the remaining <FILL: repo-id> placeholders before publishing (feature 001 T058). The Dell G3
-benchmark is still pending and is stated as such in Known limitations. Validated by
+Published as loizlabs/manaca-instruct-pt (feature 001 T058). The Dell G3 benchmark was deferred
+indefinitely and is stated as such in Known limitations. Validated by
 src/publish.py's validate_model_card() (contracts/model-usage-contract.md's pre-publish gate)
 before any Hugging Face push is attempted. Do not remove the "## Evaluation results" heading or
 either code block below — the gate checks for them.
@@ -73,8 +73,8 @@ not trained on, with the same empty result.
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("<FILL: repo-id>")
-model = AutoModelForCausalLM.from_pretrained("<FILL: repo-id>")
+tokenizer = AutoTokenizer.from_pretrained("loizlabs/manaca-instruct-pt")
+model = AutoModelForCausalLM.from_pretrained("loizlabs/manaca-instruct-pt")
 
 prompt = "### Instrução:\nCorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### Resposta:\n"
 inputs = tokenizer(prompt, return_tensors="pt")
