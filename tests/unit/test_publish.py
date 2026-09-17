@@ -88,12 +88,14 @@ def test_publish_returns_repo_url_after_gate_passes(tmp_path, monkeypatch):
 def test_push_to_hub_uploads_model_gguf_and_card(tmp_path, monkeypatch):
     import src.publish as publish_mod
 
-    model_dir = tmp_path / "model"
+    model_dir = tmp_path / "manaca-instruct-pt"  # quantize.py names GGUFs after the merged dir
     model_dir.mkdir()
     (model_dir / "model.safetensors").write_text("weights")
     gguf_dir = tmp_path / "gguf"
     gguf_dir.mkdir()
     (gguf_dir / "manaca-instruct-pt-Q4_K_M.gguf").write_text("gguf")
+    (gguf_dir / "manaca-instruct-pt-f16.gguf").write_text("intermediate")
+    (gguf_dir / "Qwen2.5-7B-Instruct-Q4_K_M.gguf").write_text("someone else's model")
 
     class FakeApi:
         def __init__(self):
@@ -120,7 +122,9 @@ def test_push_to_hub_uploads_model_gguf_and_card(tmp_path, monkeypatch):
     folder_kwargs = [c[1] for c in fake_api.calls if c[0] == "folder"]
     file_kwargs = [c[1] for c in fake_api.calls if c[0] == "file"]
     assert any(kw["repo_id"] == "someuser/manaca-instruct-pt" for kw in folder_kwargs)
-    assert any(kw.get("path_in_repo") == "gguf" for kw in folder_kwargs)
+    gguf_call = next(kw for kw in folder_kwargs if kw.get("path_in_repo") == "gguf")
+    assert gguf_call["allow_patterns"] == ["manaca-instruct-pt-*.gguf"]  # model_dir.name, never the whole directory
+    assert gguf_call["ignore_patterns"] == ["*-f16.gguf"]
     assert file_kwargs[0]["path_in_repo"] == "README.md"
 
 

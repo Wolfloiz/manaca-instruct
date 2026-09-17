@@ -78,17 +78,28 @@ def _push_to_hub(model_dir: Path, gguf_dir: Path, model_card_text: str, repo_id:
     """
     from huggingface_hub import HfApi, create_repo
 
-    if not os.environ.get("HUGGING_FACE_HUB_TOKEN") and not Path.home().joinpath(".cache/huggingface/token").exists():
+    if (
+        not os.environ.get("HF_TOKEN")
+        and not os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        and not Path.home().joinpath(".cache/huggingface/token").exists()
+    ):
         raise RuntimeError(
-            "no Hugging Face token found — set HUGGING_FACE_HUB_TOKEN or run `huggingface-cli login` "
+            "no Hugging Face token found — set HF_TOKEN or run `hf auth login` "
             "(tasks.md T058; the token is never committed to this repo)"
         )
 
     api = HfApi()
     create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
     api.upload_folder(repo_id=repo_id, folder_path=str(model_dir), commit_message="Publish merged model")
-    if gguf_dir.is_dir() and any(gguf_dir.glob("*.gguf")):
-        api.upload_folder(repo_id=repo_id, folder_path=str(gguf_dir), path_in_repo="gguf", commit_message="Publish GGUF artifacts")
+    # Only this model's quantized files: models/gguf/ also holds the 3.4 GB f16 intermediate and
+    # whatever other GGUFs were downloaded locally (the Qwen2.5 seed generator, for one), and
+    # upload_folder would otherwise push the whole directory.
+    gguf_patterns = [f"{model_dir.name}-*.gguf"]
+    if gguf_dir.is_dir() and any(p for pat in gguf_patterns for p in gguf_dir.glob(pat) if not p.name.endswith("-f16.gguf")):
+        api.upload_folder(
+            repo_id=repo_id, folder_path=str(gguf_dir), path_in_repo="gguf", commit_message="Publish GGUF artifacts",
+            allow_patterns=gguf_patterns, ignore_patterns=["*-f16.gguf"],
+        )
     api.upload_file(
         repo_id=repo_id,
         path_in_repo="README.md",

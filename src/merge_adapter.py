@@ -86,12 +86,36 @@ def _merge_and_save(model, out_dir: Path) -> None:
         _copy_raw_tokenizer_files(base_model_name, out_dir)
 
 
-def merge_adapter(adapter_path: Path, out_dir: Path) -> Path:
+GENERATION_KEYS = ("max_new_tokens", "do_sample", "temperature", "top_p", "repetition_penalty", "no_repeat_ngram_size")
+
+
+def write_generation_defaults(out_dir: Path, inference_config_path: Path) -> dict:
+    """Fold configs/inference.yaml into the merged model's generation_config.json.
+
+    What gets published is what was evaluated (002 adoption-decision.md): a downloader calling
+    `model.generate(**inputs)` with no arguments then gets the evaluated settings
+    (repetition_penalty 1.1, greedy) instead of transformers' defaults.
+    """
+    import json
+
+    import yaml
+
+    inference = yaml.safe_load(inference_config_path.read_text(encoding="utf-8"))
+    path = out_dir / "generation_config.json"
+    generation = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    generation.update({k: inference[k] for k in GENERATION_KEYS if k in inference})
+    path.write_text(json.dumps(generation, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return generation
+
+
+def merge_adapter(adapter_path: Path, out_dir: Path, inference_config_path: Path | None = None) -> Path:
     if not adapter_path.exists():
         raise FileNotFoundError(f"adapter path does not exist: {adapter_path}")
     model = _load_base_and_adapter(adapter_path)
     out_dir.mkdir(parents=True, exist_ok=True)
     _merge_and_save(model, out_dir)
+    if inference_config_path is not None:
+        write_generation_defaults(out_dir, inference_config_path)
     return out_dir
 
 
@@ -99,9 +123,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--generation-config", type=Path, default=Path("configs/inference.yaml"),
+        help="inference YAML whose generation settings become the merged model's generation_config.json defaults",
+    )
     args = parser.parse_args(argv)
 
-    out_dir = merge_adapter(args.adapter, args.out)
+    out_dir = merge_adapter(args.adapter, args.out, args.generation_config)
     print(f"Merged model written to {out_dir}")
     return 0
 

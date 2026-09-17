@@ -78,6 +78,7 @@ model = AutoModelForCausalLM.from_pretrained("<FILL: repo-id>")
 
 prompt = "### Instrução:\nCorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### Resposta:\n"
 inputs = tokenizer(prompt, return_tensors="pt")
+# these are also the model's generation_config.json defaults, so plain model.generate(**inputs) behaves the same
 output = model.generate(**inputs, max_new_tokens=256, do_sample=False, repetition_penalty=1.1)
 print(tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True))
 ```
@@ -85,7 +86,8 @@ print(tokenizer.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_to
 ### llama.cpp (GGUF)
 
 ```bash
-# lowercase prompt, raw completion (see the note above) — llama.cpp build b10985 or newer
+# GGUF files are in this repo's gguf/ folder. Lowercase prompt, raw completion (see the note
+# above) — llama.cpp build b10985 or newer
 llama-completion \
   -m manaca-instruct-pt-Q4_K_M.gguf \
   -p "### instrução:\ncorrija gramaticalmente o texto: os documento foi enviado ontem\n\n### resposta:\n" \
@@ -201,9 +203,9 @@ are grammar analysis/judgment exercises kept to stay above the 350-row category 
   `source_run_id: qlora-v3b`, `src/benchmark.py` via `llama-completion`, greedy, 128-token budget on
   the grammar prompt above, which the model answers in a few tokens): on an RTX 5050 laptop GPU
   (8 GB), **Q4_K_M 219 tok/s, 1.0 GB VRAM** (1.06 GB file) and **Q5_K_M 201 tok/s, 1.5 GB VRAM**
-  (1.23 GB file), no stall or crash. The Dell G3 (GTX 1050, 4 GB) measurement required by the
-  feature-001 plan has not been made yet (no physical access) — the "~70 tok/s on a typical modern
-  GPU" figure of that plan is a target, not a measurement, and is not claimed here.
+  (1.23 GB file), no stall or crash. The second machine of the feature-001 plan (Dell G3, GTX 1050,
+  4 GB) was not measured and is not scheduled to be — no number is claimed for low-VRAM or CPU
+  setups; the "~70 tok/s on a typical modern GPU" figure of that plan is a target, not a measurement.
 
 ## License & attribution
 
