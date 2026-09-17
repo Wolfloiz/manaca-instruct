@@ -6,6 +6,11 @@ open Brazilian-Portuguese base language model — into an instruction-following 
 lifecycle: dataset curation, supervised fine-tuning, evaluation, quantization, and cross-hardware
 deployment.
 
+**Published model**: [`loizlabz/manaca-instruct-pt`](https://huggingface.co/loizlabz/manaca-instruct-pt)
+(merged weights + Q4_K_M / Q5_K_M GGUF; the model card carries the blind evaluation table against
+`qlora-v2` and the official `menezesbruno/manaca-1b-instruct`, the usage snippets, and the
+limitations — read it before using the model).
+
 This is a **personal/learning project**, not an official release. See
 [`manaca-local-projeto.md`](manaca-local-projeto.md) for the original project vision and
 [`roadmap-execucao.md`](roadmap-execucao.md) for the execution estimate.
@@ -60,5 +65,5 @@ tests/           contract tests (shared JSONL schemas) + unit tests
 ## License
 
 The base model (`menezesbruno/manaca-1b-base`) is CC BY 4.0. The instruction datasets used to
-fine-tune it are CC BY-NC-4.0, so the resulting Manacá-Instruct-PT model will be published under
-CC BY-NC-4.0 too — see [`MODEL_CARD.md`](MODEL_CARD.md) for the full attribution.
+fine-tune it are CC BY-NC-4.0, so the published Manacá-Instruct-PT model is CC BY-NC-4.0 too —
+see [`MODEL_CARD.md`](MODEL_CARD.md) for the full attribution.
