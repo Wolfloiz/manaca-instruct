@@ -107,7 +107,17 @@ def _load_or_create_blind_copy(input_path: Path) -> tuple[Path, list[dict]]:
     rule_based scores are kept (they were computed, not judged). Resumed as-is if present."""
     out_path = blind_output_path(input_path)
     if out_path.exists():
-        return out_path, _load_rows(out_path)
+        rows = _load_rows(out_path)
+        original = _load_rows(input_path)
+        # A results file re-generated under the same run id (evaluate.py --out) must not
+        # silently resume grades given to outputs that no longer exist.
+        if [(r["id"], r["output"]) for r in rows] != [(r["id"], r["output"]) for r in original]:
+            raise ValueError(
+                f"{out_path} does not match {input_path} (ids/outputs differ): the results file was regenerated "
+                "after grading started -- move the stale -blind file away (its grades belong to the old outputs) "
+                "and grade again"
+            )
+        return out_path, rows
     rows = _load_rows(input_path)
     for row in rows:
         if row["grading_method"] == "manual_review":

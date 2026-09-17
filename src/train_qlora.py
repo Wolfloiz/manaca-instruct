@@ -323,6 +323,10 @@ def train(config_path: Path, dataset_path: Path, validation_path: Path, run_id: 
         # itself fail only for a missing input file, in which case preserve the
         # original training exception rather than masking it.
         try:
+            if output_dir.exists():
+                # checkpoints/eval losses written before the failure (e.g. Ctrl-C in epoch 3)
+                # are what makes the run auditable; no adapter was saved, so adapter_epoch is None
+                summary = {**_training_summary(output_dir, num_epochs=0), "adapter_epoch": None}
             if manifest is None:
                 manifest = build_manifest(
                     "training", run_id, base_model=config.get("base_model", "unknown"), datasets=[dataset_path, validation_path], config=config,

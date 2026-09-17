@@ -365,6 +365,32 @@ def test_keyboard_interrupt_during_training_still_writes_failed_manifest(tmp_pat
     assert TRAINING_ONLY_FIELDS <= manifest.keys()
 
 
+def test_failed_manifest_records_checkpoints_already_on_disk(tmp_path, monkeypatch):
+    """Ctrl-C in epoch 3: the two finished epochs' checkpoints and eval losses must be in the failed manifest."""
+    monkeypatch.chdir(tmp_path)
+    config_path = _write_yaml(tmp_path, VALID_CONFIG)
+    row = {"id": "x", "source": "seed", "task_category": "classification", "instruction": "Classifique", "input": "a", "output": "a"}
+    (tmp_path / "train.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+    (tmp_path / "validation.jsonl").write_text(json.dumps({**row, "id": "y", "instruction": "Outra"}) + "\n", encoding="utf-8")
+    monkeypatch.setattr("src.train_qlora._build_model", lambda config: (object(), object()))
+
+    def interrupted_training(model, tokenizer, examples, validation_examples, config, output_dir):
+        _write_checkpoint(output_dir, 7, 1.0, [{"epoch": 1.0, "eval_loss": 2.5}])
+        _write_checkpoint(output_dir, 14, 2.0, [{"epoch": 1.0, "eval_loss": 2.5}, {"epoch": 2.0, "eval_loss": 1.9}])
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr("src.train_qlora._run_training", interrupted_training)
+    _capture_manifest_kwargs(monkeypatch, [])
+
+    with pytest.raises(KeyboardInterrupt):
+        train(config_path, tmp_path / "train.jsonl", tmp_path / "validation.jsonl", "interrupted")
+    manifest = json.loads((tmp_path / "runs" / "interrupted.manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["eval_loss_by_epoch"] == {"1": 2.5, "2": 1.9}
+    assert [c["epoch"] for c in manifest["checkpoints"]] == [1, 2]
+    assert manifest["best_epoch"] == 2 and manifest["adapter_epoch"] is None
+
+
 def test_early_failure_manifest_has_same_training_fields_as_late_failure(tmp_path, monkeypatch):
     """A failure before build_manifest (here: train/validation overlap) must not produce a thinner manifest."""
     monkeypatch.chdir(tmp_path)
