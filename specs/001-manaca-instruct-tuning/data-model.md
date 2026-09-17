@@ -103,6 +103,7 @@ Represents one throughput/resource measurement (`benchmarks/*.jsonl`), per FR-00
 | `vram_mb` | number \| null | Peak VRAM usage, where applicable (may be null for a CPU-only Dell G3 run). |
 | `ram_mb` | number | Peak system RAM usage. |
 | `stalled_or_crashed` | boolean | Whether generation failed to complete cleanly (SC-004's pass/fail signal). |
+| `source_run_id` | string (optional) | The `FineTuningRun.run_id` the measured GGUF was merged from (`--source-run-id`); added in feature 002 when `benchmarks/rtx-5050.jsonl` started holding rows from more than one run (qlora-v2, then the adopted qlora-v3b). Rows written before that carry it too, annotated from the 001 task log. |
 
 **Validation rules**:
 - At least one `BenchmarkRecord` per `(machine, quant_level)` combination actually tested is required before FR-007/SC-004/SC-005 can be marked satisfied — these are measured facts, not estimates, per the Edge Cases section of spec.md.

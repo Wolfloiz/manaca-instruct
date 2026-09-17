@@ -68,7 +68,10 @@ def test_run_benchmark_builds_valid_record_with_mocked_llama_cli(tmp_path, monke
     monkeypatch.setattr("src.benchmark._run_and_measure", fake_run_and_measure)
 
     record = run_benchmark(model_path, "rtx-5050")
+    assert "source_run_id" not in record  # optional: absent when not given, so older rows stay valid
 
+    record = run_benchmark(model_path, "rtx-5050", source_run_id="qlora-v3b")
+    assert record["source_run_id"] == "qlora-v3b"
     assert record["machine"] == "rtx-5050"
     assert record["quant_level"] == "Q4_K_M"
     assert record["tokens_per_second"] == 200.0

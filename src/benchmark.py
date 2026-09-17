@@ -198,7 +198,9 @@ def _run_generation_benchmark(model, prompt: str, max_new_tokens: int) -> dict:
     }
 
 
-def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> dict:
+def run_benchmark(
+    model_path: Path, machine: str, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, source_run_id: str | None = None
+) -> dict:
     """Note: pre-flight problems (bad --machine, missing/non-GGUF file, no llama-cli on
     PATH) raise — those are setup errors, not a benchmark result. A failure *during* the
     actual warm-up/generation (llama-cli exits non-zero, e.g. OOM) is caught here and
@@ -212,6 +214,10 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
         raise FileNotFoundError(f"GGUF model file does not exist: {model_path}")
 
     quant_level = model_path.stem.rsplit("-", 1)[-1]
+    # The GGUF file name is the same for every adapter that gets merged (manaca-instruct-pt-*),
+    # so a benchmarks/*.jsonl that spans runs (v2 rows kept, v3b rows appended -- 002 T056)
+    # needs the run recorded on the row itself; `source_run_id` mirrors QuantizedArtifact's.
+    provenance = {"source_run_id": source_run_id} if source_run_id else {}
     start = time.monotonic()
     try:
         model = _load_gguf_model(model_path)
@@ -224,6 +230,7 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
             "vram_mb": None,
             "ram_mb": None,
             "stalled_or_crashed": True,
+            **provenance,
         }
     load_time_s = time.monotonic() - start
 
@@ -237,6 +244,7 @@ def run_benchmark(model_path: Path, machine: str, max_new_tokens: int = DEFAULT_
         "vram_mb": result.get("vram_mb"),
         "ram_mb": result["ram_mb"],
         "stalled_or_crashed": result["stalled_or_crashed"],
+        **provenance,
     }
 
 
@@ -251,9 +259,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--machine", required=True, choices=sorted(KNOWN_MACHINES))
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--source-run-id", default=None,
+        help="training run the GGUF was merged from (e.g. qlora-v3b); recorded as source_run_id on the row",
+    )
     args = parser.parse_args(argv)
 
-    record = run_benchmark(args.model, args.machine)
+    record = run_benchmark(args.model, args.machine, source_run_id=args.source_run_id)
     append_record(record, args.out)
     print(f"Recorded benchmark for {args.machine}: {record['tokens_per_second']:.1f} tok/s")
     return 0

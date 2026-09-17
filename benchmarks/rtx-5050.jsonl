@@ -1,2 +1,2 @@
-{"machine": "rtx-5050", "quant_level": "Q4_K_M", "tokens_per_second": 86.81857101036458, "load_time_s": 0.7381571650003025, "vram_mb": 1306, "ram_mb": 1360, "stalled_or_crashed": false}
-{"machine": "rtx-5050", "quant_level": "Q5_K_M", "tokens_per_second": 77.95645659063096, "load_time_s": 1.1851813920002314, "vram_mb": 1454, "ram_mb": 1524, "stalled_or_crashed": false}
+{"machine": "rtx-5050", "quant_level": "Q4_K_M", "tokens_per_second": 86.81857101036458, "load_time_s": 0.7381571650003025, "vram_mb": 1306, "ram_mb": 1360, "stalled_or_crashed": false, "source_run_id": "qlora-v2"}
+{"machine": "rtx-5050", "quant_level": "Q5_K_M", "tokens_per_second": 77.95645659063096, "load_time_s": 1.1851813920002314, "vram_mb": 1454, "ram_mb": 1524, "stalled_or_crashed": false, "source_run_id": "qlora-v2"}
